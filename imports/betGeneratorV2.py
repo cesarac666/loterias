@@ -7,6 +7,8 @@ import pandas as pd
 import itertools
 import random
 
+from allFiltersV3 import ResultadosFiltrados
+
 class BetGeneratorV2:
     def __init__(self, dataframe):
         self.dataframe = dataframe
