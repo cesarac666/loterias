@@ -161,3 +161,14 @@ class BetGeneratorV2:
                 print("********** VENCEDOR *************")
         return soma
 
+        
+class ResultadosFiltrados(object):
+    # foi necessáriio copiar esta classe visto que o import nao funcinou :::  
+    def __init__(self, dataframe, filtros):
+        self.df = dataframe
+        self.filtros = filtros
+
+    def get_filtered_results(self):
+        df_filtrado = self.df
+        for filtro in self.filtros:
+            df_filtrado = filtro.apply(df_filtrado)
