@@ -61,7 +61,10 @@ class BetGeneratorV2:
         filtered_results = ResultadosFiltrados(bets, filtros)  # Create a ResultadosFiltrados object
         filtered_bets = filtered_results.get_filtered_results()  # Get the filtered bets
         print('Encerrando a geracao de apostas com filtros')
-        print('QTD de apostas geradas(depois):', len(filtered_bets))
+        if filtered_bets is not None:
+        	print('QTD de apostas geradas(depois):', len(filtered_bets))
+    	else:
+        	print('Nenhuma aposta foi filtrada.')
 
         return filtered_bets
 
