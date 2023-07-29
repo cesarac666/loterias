@@ -35,3 +35,27 @@ class NahClassifier:
             self.dataframe.at[i, 'GH'] = sorted(list(H))
 
         return self.dataframe
+
+    def count_combinations(self, df):
+        # Agrupa o DataFrame pelas colunas 'combNAH_df1' e 'combNAH_df2' e conta o número de ocorrências
+        count_df = df.groupby(['combNAH_df1', 'combNAH_df2']).size().reset_index(name='count')
+        count_df = count_df.sort_values('count', ascending=False)
+
+        return count_df
+
+    def find_combinations(self, df, comb):
+        # Filtra o DataFrame para incluir apenas as linhas onde 'combNAH_df1' é igual a 'comb'
+        filtered_df = df[df['combNAH_df1'] == comb]
+        # Ordena o DataFrame filtrado pela coluna 'count' de forma decrescente
+        filtered_df = filtered_df.sort_values('count', ascending=False)
+        return filtered_df
+        
+    def merge_dataframes(df1, df2, key_col1, key_col2):
+        df_merge = pd.merge(df1, df2, left_on=key_col1, right_on=key_col2, suffixes=('_df1', '_df2'))
+        return df_merge
+
+    def column_filter(df1, colunas):
+        df_new = df1[colunas]
+        return df_new
+        
+        
