@@ -1,0 +1,129 @@
+{
+  "id": "e0e380f6-02b2-4561-8d73-41143364e523",
+  "version": "2.0",
+  "name": "Google Test",
+  "url": "https://www.google.com",
+  "tests": [{
+    "id": "440b09eb-1b50-404a-973c-8c3f14ee7136",
+    "name": "Loteria",
+    "commands": [{
+      "id": "75375498-0229-4ae4-852b-fa0158d8f0b7",
+      "comment": "",
+      "command": "open",
+      "target": "https://www.loteriasonline.caixa.gov.br/silce-web/#/lotofacil",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "250b07ec-9c78-4740-b995-b20867199e55",
+      "comment": "",
+      "command": "setWindowSize",
+      "target": "1440x701",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "78c9380b-ab88-42e6-bb85-84a627a2e932",
+      "comment": "",
+      "command": "executeScript",
+      "target": "return [['01', '02', '07', '08', '10', '12', '13', '14', '15', '17', '18', '19', '21', '22', '25'], ['02', '03', '05', '07', '09', '10', '11', '13', '14', '16', '18', '19', '20', '22', '25'], ['02', '03', '06', '07', '09', '11', '13', '14', '18', '19', '20', '21', '22', '24', '25'], ['01', '02', '03', '04', '06', '09', '11', '12', '15', '16', '17', '18', '21', '24', '25'], ['01', '02', '03', '08', '09', '10', '12', '13', '14', '15', '18', '19', '20', '21', '23'], ['01', '02', '03', '09', '10', '11', '14', '15', '16', '18', '19', '20', '23', '24', '25'], ['02', '03', '05', '06', '09', '11', '12', '13', '15', '17', '18', '20', '22', '24', '25'], ['02', '03', '05', '06', '09', '10', '11', '12', '14', '15', '17', '19', '22', '24', '25'], ['01', '02', '03', '05', '06', '09', '10', '13', '14', '15', '16', '20', '21', '22', '25'], ['03', '04', '05', '07', '08', '10', '11', '12', '13', '14', '17', '18', '19', '22', '25'], ['02', '03', '04', '07', '08', '09', '10', '12', '13', '15', '17', '20', '21', '22', '23'], ['02', '05', '06', '07', '09', '10', '11', '14', '15', '18', '19', '20', '22', '23', '25'], ['02', '03', '04', '05', '06', '07', '08', '11', '13', '18', '19', '20', '21', '22', '25'], ['02', '03', '05', '07', '08', '10', '11', '15', '16', '17', '18', '20', '22', '23', '25'], ['01', '02', '03', '05', '06', '09', '10', '12', '15', '17', '18', '20', '22', '23', '25'], ['03', '04', '05', '09', '10', '11', '13', '15', '16', '18', '20', '22', '23', '24', '25'], ['01', '02', '03', '07', '09', '10', '13', '14', '16', '18', '19', '20', '21', '22', '25'], ['01', '02', '03', '04', '07', '09', '10', '12', '15', '16', '17', '20', '21', '22', '23'], ['01', '02', '03', '07', '08', '10', '11', '14', '15', '16', '17', '18', '20', '23', '25'], ['01', '02', '03', '04', '08', '09', '12', '13', '14', '18', '19', '20', '21', '23', '25']]",
+      "targets": [],
+      "value": "listaConcurso"
+    }, {
+      "id": "975b22a5-30b4-4f79-af9a-9e695b739498",
+      "comment": "",
+      "command": "executeScript",
+      "target": "return ${listaConcurso}",
+      "targets": [],
+      "value": "umaListaAposta"
+    }, {
+      "id": "758ba8a6-e261-4046-8571-715b5341d050",
+      "comment": "",
+      "command": "forEach",
+      "target": "umaListaAposta",
+      "targets": [],
+      "value": "umaAposta"
+    }, {
+      "id": "d089e7b3-4517-4f2f-ab3b-4e38d4dfc28e",
+      "comment": "",
+      "command": "click",
+      "target": "id=limparvolante",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "0a0a2208-95ec-4474-806b-2f56dc71bae6",
+      "comment": "",
+      "command": "forEach",
+      "target": "umaAposta",
+      "targets": [],
+      "value": "num"
+    }, {
+      "id": "f9753de2-f4e0-46d8-822c-db0f396ce41e",
+      "comment": "",
+      "command": "echo",
+      "target": "${num}",
+      "targets": [],
+      "value": "count"
+    }, {
+      "id": "3becaf5d-edfe-4287-a755-276c8cf81c5d",
+      "comment": "",
+      "command": "click",
+      "target": "id=n${num}",
+      "targets": [
+        ["id=n01", "id"],
+        ["linkText=01", "linkText"],
+        ["css=#n01", "css:finder"],
+        ["xpath=//a[contains(text(),'01')]", "xpath:link"],
+        ["xpath=//a[@id='n01']", "xpath:attributes"],
+        ["xpath=//div[@id='container-volante']/div/div/ul/li/a", "xpath:idRelative"],
+        ["xpath=(//a[contains(@href, '')])[19]", "xpath:href"],
+        ["xpath=//div[3]/div/div/div/div/ul/li/a", "xpath:position"],
+        ["xpath=//a[contains(.,'01')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "b1a364b5-de95-432b-b033-a2a379ff9175",
+      "comment": "",
+      "command": "end",
+      "target": "",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "44015dd9-1529-4486-b04d-7f1a91edf812",
+      "comment": "",
+      "command": "click",
+      "target": "id=colocarnocarrinho",
+      "targets": [
+        ["id=colocarnocarrinho", "id"],
+        ["css=#colocarnocarrinho", "css:finder"],
+        ["xpath=//button[@id='colocarnocarrinho']", "xpath:attributes"],
+        ["xpath=//div[@id='container-volante']/div/div[11]/button", "xpath:idRelative"],
+        ["xpath=//div[11]/button", "xpath:position"],
+        ["xpath=//button[contains(.,' Colocar no Carrinho')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "2536e820-5f7d-434c-aef1-b802670de56e",
+      "comment": "",
+      "command": "click",
+      "target": "id=limparvolante",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "3d410eae-3346-4307-9fe1-f01a97fb6363",
+      "comment": "",
+      "command": "end",
+      "target": "",
+      "targets": [],
+      "value": ""
+    }]
+  }],
+  "suites": [{
+    "id": "4c1936f1-7ca5-4a02-9fc1-724383458a6d",
+    "name": "Default Suite",
+    "persistSession": false,
+    "parallel": false,
+    "timeout": 300,
+    "tests": []
+  }],
+  "urls": ["https://www.google.com/"],
+  "plugins": []
+}
