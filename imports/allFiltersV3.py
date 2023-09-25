@@ -20,6 +20,24 @@ class FiltroResultadosAnteriores(Filtro):
         dfRAnteriores = dfRAnteriores.assign(CCOriginal = dfRAnteriores['CC']+1)
         return dfRAnteriores
 
+# class FiltroQuaseTresPorLinha(Filtro):
+#    def __init__(self, ativo=True):
+#        super().__init__(ativo)
+
+#    def apply(self, df):
+#        if self.ativo:
+#            def is_quasi_three_per_line(pattern):
+#                # Contando o número de ocorrências de cada valor
+#                counts = {i: pattern.count(i) for i in pattern}
+#                # Verificando se o padrão atende ao critério
+#                return counts.get(3, 0) == 3 and counts.get(2, 0) == 1 and counts.get(4, 0) == 1
+
+#           # Filtrando o DataFrame
+#           return df[df['countL'].apply(is_quasi_three_per_line)]
+#        else:
+#            return df
+
+# VERSAO FIXA >>> 3 2/4 3 2/4 3 
 class FiltroQuaseTresPorLinha(Filtro):
     def __init__(self, ativo=True):
         super().__init__(ativo)
@@ -30,12 +48,18 @@ class FiltroQuaseTresPorLinha(Filtro):
                 # Contando o número de ocorrências de cada valor
                 counts = {i: pattern.count(i) for i in pattern}
                 # Verificando se o padrão atende ao critério
-                return counts.get(3, 0) == 3 and counts.get(2, 0) == 1 and counts.get(4, 0) == 1
+                three_counts = counts.get(3, 0)
+                two_counts = counts.get(2, 0)
+                four_counts = counts.get(4, 0)
+                
+                return (three_counts == 3 and two_counts == 2 and four_counts == 0) or \
+                       (three_counts == 3 and four_counts == 2 and two_counts == 0)
 
             # Filtrando o DataFrame
             return df[df['countL'].apply(is_quasi_three_per_line)]
         else:
             return df
+
 
 class FiltroTresPorLinha(Filtro):
     def __init__(self, ativo=True):
