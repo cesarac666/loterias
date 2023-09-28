@@ -45,15 +45,7 @@ class FiltroQuaseTresPorLinhaFixo(Filtro):
     def apply(self, df):
         if self.ativo:
             def is_quasi_three_per_line(pattern):
-                # Contando o número de ocorrências de cada valor
-                counts = {i: pattern.count(i) for i in pattern}
-                # Verificando se o padrão atende ao critério
-                three_counts = counts.get(3, 0)
-                two_counts = counts.get(2, 0)
-                four_counts = counts.get(4, 0)
-                
-                return (three_counts == 3 and two_counts == 1 and four_counts == 1)
-
+                return pattern == [3, 4, 3, 2, 3] or pattern == [3, 2, 3, 4, 3]
             # Filtrando o DataFrame
             return df[df['countL'].apply(is_quasi_three_per_line)]
         else:
