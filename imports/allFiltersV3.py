@@ -32,13 +32,13 @@ class FiltroQuaseTresPorLinha(Filtro):
                 # Verificando se o padrão atende ao critério
                 return counts.get(3, 0) == 3 and counts.get(2, 0) == 1 and counts.get(4, 0) == 1
 
-           # Filtrando o DataFrame
-           return df[df['countL'].apply(is_quasi_three_per_line)]
+            # Filtrando o DataFrame
+            return df[df['countL'].apply(is_quasi_three_per_line)]
         else:
             return df
 
 # VERSAO FIXA >>> 3 2/4 3 2/4 3 
-class FiltroQuaseTresPorLinha_NOK(Filtro):
+class FiltroQuaseTresPorLinhaFixo(Filtro):
     def __init__(self, ativo=True):
         super().__init__(ativo)
 
