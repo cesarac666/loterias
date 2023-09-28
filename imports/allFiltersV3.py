@@ -52,7 +52,7 @@ class FiltroQuaseTresPorLinhaFixo(Filtro):
                 two_counts = counts.get(2, 0)
                 four_counts = counts.get(4, 0)
                 
-                return (three_counts == 3 and two_counts == 2 and four_counts == 0) or (three_counts == 3 and four_counts == 2 and two_counts == 0)
+                return (three_counts == 3 and two_counts == 1 and four_counts == 1)
 
             # Filtrando o DataFrame
             return df[df['countL'].apply(is_quasi_three_per_line)]
