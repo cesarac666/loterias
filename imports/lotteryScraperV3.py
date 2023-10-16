@@ -3,6 +3,9 @@ from requests.exceptions import ConnectTimeout
 from bs4 import BeautifulSoup
 import pandas as pd
 import re
+import requests
+from bs4 import Tag
+from bs4 import BeautifulSoup
 
 class LotteryScraper:
     def __init__(self, df):
@@ -80,10 +83,6 @@ class LotteryScraper:
         return "99" # STOP !!!
 
     # busca de outro site:
-    import requests
-    from bs4 import Tag
-    from bs4 import BeautifulSoup
-    
     def formatar_dados(self, titulo, data, numeros):
         # Verifique se os argumentos são do tipo correto
         if not isinstance(titulo, (str, Tag)) or not isinstance(data, (str, Tag)):
