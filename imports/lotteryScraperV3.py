@@ -145,6 +145,9 @@ class LotteryScraper:
     def retorna_df_ultimo_resultado(self):
         data_str = self.retorno_resultado_online_site_novo()
         data_parts = data_str.split(',')
+        if data_parts is None:
+            print("No numbers to add")
+            return
         data_dict = {
             "CC": data_parts[0],
             "Data_Sorteio": data_parts[1],
@@ -165,8 +168,9 @@ class LotteryScraper:
             "B15": data_parts[16],
             "Ganhador": data_parts[17],  # assumindo que "99" é o ganhador
         }
-        df = pd.DataFrame([data_dict]) 
-        return df
+        
+        new_df = pd.DataFrame(data_dict, index=[0])
+        return new_df
     # fim da busca de outro site
 
     # aqui é o retorno do site antigo 
