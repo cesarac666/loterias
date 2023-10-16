@@ -141,10 +141,10 @@ class LotteryScraper:
         #print(f"Tipo de 'titulo': {type(titulo)}")
         #print(f"Tipo de 'data': {type(data)}")
     
-        return formatar_dados(titulo, data, numeros)
+        return self.formatar_dados(titulo, data, numeros)
 
     def retorna_df_ultimo_resultado(self):
-        data_str = retorno_resultado_online_site_novo()
+        data_str = self.retorno_resultado_online_site_novo()
         data_parts = data_str.split(',')
         data_dict = {
             "CC": data_parts[0],
