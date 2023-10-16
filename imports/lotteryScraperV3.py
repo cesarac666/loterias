@@ -103,7 +103,7 @@ class LotteryScraper:
         numero_sorteio = numero_sorteio.replace("Draw ", "").strip()
     
         # Junte tudo
-        resultado = f"{numero_sorteio},{data_formatada},{','.join(map(str, numeros))},88"
+        resultado = f"{numero_sorteio},{data_formatada},{','.join(map(str, numeros))},77"
     
         return resultado
 
@@ -170,6 +170,8 @@ class LotteryScraper:
         }
         
         new_df = pd.DataFrame(data_dict, index=[0])
+        new_df[columns] = new_df[columns].astype(int)
+        
         return new_df
     # fim da busca de outro site
 
