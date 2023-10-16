@@ -103,7 +103,7 @@ class LotteryScraper:
         numero_sorteio = numero_sorteio.replace("Draw ", "").strip()
     
         # Junte tudo
-        resultado = f"{numero_sorteio},{data_formatada},{','.join(map(str, numeros))},99"
+        resultado = f"{numero_sorteio},{data_formatada},{','.join(map(str, numeros))},88"
     
         return resultado
 
