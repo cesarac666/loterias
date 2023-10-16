@@ -170,7 +170,7 @@ class LotteryScraper:
         }
         
         new_df = pd.DataFrame(data_dict, index=[0])
-        new_df[columns] = new_df[columns].astype(int)
+        new_df = new_df.astype(int)
         
         return new_df
     # fim da busca de outro site
