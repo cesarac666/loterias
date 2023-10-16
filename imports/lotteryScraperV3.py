@@ -168,9 +168,10 @@ class LotteryScraper:
             "B15": data_parts[16],
             "Ganhador": data_parts[17],  # assumindo que "99" é o ganhador
         }
-        
+        columns = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11', 'B12', 'B13', 'B14', 'B15']
+
         new_df = pd.DataFrame(data_dict, index=[0])
-        new_df = new_df.astype(int)
+        new_df[columns] = new_df[columns].astype(int)
         
         return new_df
     # fim da busca de outro site
