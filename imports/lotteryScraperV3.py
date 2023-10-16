@@ -79,6 +79,98 @@ class LotteryScraper:
         winner_string = winner.replace("acertos", "").strip()
         return "99" # STOP !!!
 
+    # busca de outro site:
+    import requests
+    from bs4 import Tag
+    from bs4 import BeautifulSoup
+    
+    def formatar_dados(self, titulo, data, numeros):
+        # Verifique se os argumentos são do tipo correto
+        if not isinstance(titulo, (str, Tag)) or not isinstance(data, (str, Tag)):
+            raise ValueError("Os argumentos 'titulo' e 'data' devem ser strings ou objetos Tag do Beautiful Soup!")
+    
+        # Extrair a data do título e formatar para DD/MM/YYYY
+        data_bruta = titulo.text if isinstance(titulo, Tag) else titulo
+        mes_map = {
+            'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+            'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+            'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+        }
+        mes, dia, ano = data_bruta.replace(',', '').split()
+        data_formatada = f"{int(dia):02}/{mes_map[mes]}/{ano}"
+    
+        # Extrair o número do sorteio de data
+        numero_sorteio = data.text if isinstance(data, Tag) else data
+        numero_sorteio = numero_sorteio.replace("Draw ", "").strip()
+    
+        # Junte tudo
+        resultado = f"{numero_sorteio},{data_formatada},{','.join(map(str, numeros))},99"
+    
+        return resultado
+
+    def retorno_resultado_online_site_novo(self): 
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+    
+        url = "https://www.lotoloto.com.br/lotofacil/"
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # print(soup)
+    
+        divs_numeros = soup.select('.item.recente .numeros')
+        primeira_div = divs_numeros[0]
+        div_numeros = primeira_div.select('.num')
+    
+        div_titulo = soup.select('.item.recente .titulo')
+        div_data   = soup.select('.item.recente .data')
+        #print("div_data", div_data[0])
+        # for numero in div_numeros:
+        #    print(numero.text.strip())
+        # print(div_numeros)
+        numeros = []
+        for numero in div_numeros:
+            isso = numero.text.strip()
+            numeros.append(int(isso))
+    
+        #print(numeros)
+        titulo = div_titulo[0]
+        #print("titulo", titulo)
+        data   = div_data[0]
+        #print("data", data)
+        #print(f"Tipo de 'titulo': {type(titulo)}")
+        #print(f"Tipo de 'data': {type(data)}")
+    
+        return formatar_dados(titulo, data, numeros)
+
+    def retorna_df_ultimo_resultado(self):
+        data_str = retorno_resultado_online_site_novo()
+        data_parts = data_str.split(',')
+        data_dict = {
+            "CC": data_parts[0],
+            "Data_Sorteio": data_parts[1],
+            "B1": data_parts[2],
+            "B2": data_parts[3],
+            "B3": data_parts[4],
+            "B4": data_parts[5],
+            "B5": data_parts[6],
+            "B6": data_parts[7],
+            "B7": data_parts[8],
+            "B8": data_parts[9],
+            "B9": data_parts[10],
+            "B10": data_parts[11],
+            "B11": data_parts[12],
+            "B12": data_parts[13],
+            "B13": data_parts[14],
+            "B14": data_parts[15],
+            "B15": data_parts[16],
+            "Ganhador": data_parts[17],  # assumindo que "99" é o ganhador
+        }
+        df = pd.DataFrame([data_dict]) 
+        return df
+    # fim da busca de outro site
+
+    # aqui é o retorno do site antigo 
     def add_to_dataframe(self):
         numbers_list = self.fetch_data()
 
@@ -114,3 +206,4 @@ class LotteryScraper:
         print(new_df.to_csv(index=False, header=False))
 
         return new_df
+
