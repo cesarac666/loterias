@@ -1,0 +1,178 @@
+pahtfile = "https://raw.githubusercontent.com/cesarac666/loterias/main/todasTresPorLinha.csv"
+
+load = LoadData(pahtfile)
+load.read_csv()
+
+df = load.dataframe.copy()
+
+cemMilApostas = df.copy()
+cemMilApostas.shape
+
+cemMilApostas.head(1)
+
+
+#####################################
+# filtrando as apostas step by step # 
+#####################################
+
+# acrescenta as colunas de analise
+PIClassifier = ParImpar()
+PIClassifier.dataframe = cemMilApostas # df que recebe as colunas de contagem
+ret = PIClassifier.calculate_pi(cemMilApostas) # df de contagem de B1..B15
+ret.head()
+
+
+# mais colunas
+analyzer_cemMil = LotteryAnalyzer(cemMilApostas)
+cemMilApostas = analyzer_cemMil.df.copy()
+
+cemMilApostas = adicionar_maior_sequencia_consecutivos(cemMilApostas)
+
+cemMilApostas = adicionar_maior_salto(cemMilApostas)
+
+###########################
+# FILTROS 100 MIL APOSTAS #
+###########################
+
+
+# 1) FiltroDezenasParesImpares
+filtros_cemMil = [FiltroDezenasParesImpares([6,7,8], [7,8,9])]
+
+resultados_filtros_cemMil = ResultadosFiltrados(cemMilApostas, filtros_cemMil)
+cemMilApostas_filtrado_by_pi = resultados_filtros_cemMil.get_filtered_results()
+cemMilApostas_filtrado_by_pi.shape # --->> baixou 30 mil : 73900
+
+# 2) 
+# colunas em linhas sequencias que sao repetidas
+cemMilApostas_filtrado_by_pi_cre = cemMilApostas_filtrado_by_pi.query('countCRE < 2')  
+cemMilApostas_filtrado_by_pi_cre.shape # --->>> baixou 4 mil : 69102
+
+# 3) 
+# maior salto ( o limite é quatro )
+cemMilApostas_filtrado_by_pi_cre_cs_ms = cemMilApostas_filtrado_by_pi_cre_cs.query('maiorSalto in [3, 4]') # 3,4
+cemMilApostas_filtrado_by_pi_cre_cs_ms.shape # --->>> baixou 4 mil : 62047 (ou 46166 tirando o 4)
+
+# 4) 
+# quantidade de dezenas por coluna 
+vetor_min = [2, 1, 1, 1, 1] # [2, 2, 2, 1, 1] ::: extendido [2, 1, 2, 1, 1]
+vetor_max = [5, 5, 4, 5, 5] # [5, 5, 4, 5, 4]               [5, 5, 4, 5, 4]
+cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol = filtro_coluna('countC', cemMilApostas_filtrado_by_pi_cre_cs_ms, vetor_min, vetor_max)
+cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol.shape # --->>> extendido baixou 11 mil : 51870 (baixava 16 mil)
+
+# 5) 
+# Filtro de Variações NAH >>>
+NAH_base = (ultresult_N, ultresult_A, ultresult_H)
+print(NAH_base)
+
+# usar a lista com +-3 ou a lista menor com até 2 de variacao em cada NAH
+variacoes_df = pd.DataFrame(variacoes_ate_tres_na_mao) ### VAMOS AMPLIAR  # variacoes_ate_dois_na_mao
+variacoes_df
+
+# df_ra_nah_ate_3 # Historico não funcionou no CC 3004
+
+lista_variacoes = criar_lista_variacoes(variacoes_df) # df_ra_nah_ate_3 = ampliado 
+# Agora, lista_variacoes terá apenas elementos únicos
+lista_variacoes = list(set(lista_variacoes))
+print(lista_variacoes)
+
+# monta lista de NAH: base + variacoes 
+NAHs_validos = [(NAH_base[0] + var[0], NAH_base[1] + var[1], NAH_base[2] + var[2]) for var in lista_variacoes]
+print(NAHs_validos)
+
+#  filtra usando valores minMax historicos dos resultados NAH 
+df_NAHs_validos = pd.DataFrame({'coluna_lista': NAHs_validos})
+# df_NAHs_validos
+
+vetor_min = [minN, minA, minH] 
+vetor_max = [maxN, maxA, maxH]
+NAHs_validos_filtrado = filtro_coluna('coluna_lista', df_NAHs_validos, vetor_min, vetor_max)
+NAHs_validos_historicos = NAHs_validos_filtrado['coluna_lista'].tolist()
+NAHs_validos_historicos
+# Porem esse histórico não é uma boa !! 
+
+# Aplicar a função de filtro
+# apostas_validas = filtra_nah_variando(cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol, NAHs_validos)
+
+apostas_validas = filtrar_nahval(cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol, ultimo_resultado_csv_nah, NAHs_validos) # 5, 3, 7
+cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol_nahval = apostas_validas
+cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol_nahval.shape # --->>> baixou 5 mil : 47906 (antes baixava 20 mil)  
+
+
+# 6) 
+# type(cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol_nahval)
+df_filtrado = cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol_nahval
+df_filtrado_abcd = handler.add_group_columns_v3(df_filtrado)
+
+# SUAVE GAMBIARRA >>> 
+df_filtrado_abcd['combFreq'] = df_filtrado_abcd[['countG1', 'countG2', 'countG3', 'countG4']].apply(tuple, axis=1)
+
+# df_filtrado_abcd.tail(10)
+
+# Filtro ABCD 
+#     3 por linnha: 1/3, 2/4, 5/8, 1,5
+#             ALLL: 1/3, 2/4, 5/8, 2/4
+#QUASE 3 por Linha: 1/3, 2/4, 5/7, 2/5
+
+#combFreq
+#(2, 4, 7, 2)    2
+#(1, 3, 8, 3)    2
+# ...
+#(1, 4, 9, 1)    1
+# 3 por linnha atualizado 14/03/24       :->>> 1/2, 2/5, 7/9, 1/3
+
+#ABCD combFreq
+#(1, 5, 6, 3)    40
+#(1, 5, 7, 2)    34
+#...
+#(1, 4, 6, 4)    18
+# Quase 3 por linnha atualizado 14/03/24 :->>> 0/1, 4/7, 5/7, 2/4
+
+vetor_min =  [0, 2, 4, 0]  # 1 2 5 2  SUPER-AMPLIADO: [0, 2, 4, 0]  ANTES: # [1, 2, 4, 1]
+vetor_max =  [3, 8, 10, 5] # 3 4 7 4                  [3, 8, 10, 5]        # [3, 5, 8, 5]
+cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol_nahval_abcd = filtro_coluna('combFreq', df_filtrado_abcd, vetor_min, vetor_max)
+cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol_nahval_abcd.shape # --->>> baixou 4 mil : 44314 (antes baixava 10 mil) 
+
+
+######################
+# FILTROS NOVOS HARD #
+######################
+
+# 7) filtro_dezenas_uma_boladavez
+df_minimizado = cemMilApostas_filtrado_by_pi_cre_cs_ms_mmcol_nahval_abcd.copy()
+df_minimizado.shape
+
+df_minimizado_bolavez = filtro_dezenas_uma_boladavez(df_minimizado, df_bv_entram, df_bv_saem)
+df_minimizado_bolavez.shape # --->>> baixou 1 mil apenas; 
+
+
+# 8) filtro_dezenas_losango_ou_centro
+df_minimizado_bolavez_losango = filtro_dezenas_losango_ou_centro(df_minimizado_bolavez)
+df_minimizado_bolavez_losango.shape # ---->>>> nao filtrou nada 
+
+
+# 9) filtro_dezenas_onze_quinze
+df_minimizado_bolavez_11_15 = filtro_dezenas_onze_quinze(df_minimizado_bolavez_losango)
+df_minimizado_bolavez_11_15.shape # ---->>> baixou 4 mil 
+
+
+# 10) filtro_duas_dezenas_canto # RETIRADO 
+#df_minimizado_bolavez_losango_11_15_canto = filtro_duas_dezenas_canto(df_minimizado_bolavez_11_15)
+#df_minimizado_bolavez_losango_11_15_canto.shape # ===>>> baixou 4 mil
+
+
+# 11) filtro_maximo_um_cinco
+#df_minimizado_bolavez_losango_11_15_canto_quatro_diagonais_cinco = filtro_maximo_um_cinco(df_minimizado_bolavez_losango_11_15_canto_quatro_diagonais)
+df_minimizado_bolavez_losango_11_15_canto_quatro_diagonais_cinco = filtro_maximo_um_cinco(df_minimizado_bolavez_losango_11_15_canto_quatro)
+df_minimizado_bolavez_losango_11_15_canto_quatro_diagonais_cinco.shape #--->>> nao filtrou nada 
+
+
+# 12) filtrar_tres_consecutivos
+df_minimizado_bolavez_losango_11_15_canto_quatro_diagonais_cinco_consecutivos = filtrar_tres_consecutivos(df_minimizado_bolavez_losango_11_15_canto_quatro_diagonais_cinco)
+df_minimizado_bolavez_losango_11_15_canto_quatro_diagonais_cinco_consecutivos.shape # --->>> baixou 6 mil 
+
+
+# FINAL: 
+apostasCemMil = df_minimizado_bolavez_losango_11_15_canto_quatro_diagonais_cinco_consecutivos.copy()
+
+
+
