@@ -175,3 +175,4 @@ class ResultadosFiltrados(object):
         df_filtrado = self.df
         for filtro in self.filtros:
             df_filtrado = filtro.apply(df_filtrado)
+        return df_filtrado
