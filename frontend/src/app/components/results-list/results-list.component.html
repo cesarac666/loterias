@@ -1,0 +1,17 @@
+<h2>Últimos 10 resultados</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Concurso</th>
+      <th>Data</th>
+      <th>Dezenas</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let r of results">
+      <td>{{ r.concurso }}</td>
+      <td>{{ r.data }}</td>
+      <td>{{ r.dezenas.join(', ') }}</td>
+    </tr>
+  </tbody>
+</table>
