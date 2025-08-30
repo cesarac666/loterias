@@ -1,3 +1,12 @@
+<div class="filters">
+  <label>
+    <input type="checkbox" [(ngModel)]="useParImpar"> Par Ímpar
+  </label>
+  <input type="text" placeholder="Pares" [(ngModel)]="pares" [disabled]="!useParImpar">
+  <input type="text" placeholder="Ímpares" [(ngModel)]="impares" [disabled]="!useParImpar">
+  <button (click)="loadResults()">Aplicar</button>
+</div>
+
 <h2>Últimos 10 resultados</h2>
 <table>
   <thead>
