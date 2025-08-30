@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+
+import { HttpClient, HttpParams } from '@angular/common/http';
+
 import { Observable } from 'rxjs';
 
 export interface LotofacilResult {
@@ -17,7 +19,14 @@ export class ResultsService {
 
   constructor(private http: HttpClient) {}
 
-  getLastResults(): Observable<LotofacilResult[]> {
-    return this.http.get<LotofacilResult[]>(this.API_URL);
+  getLastResults(pares: number[] = [], impares: number[] = []): Observable<LotofacilResult[]> {
+    let params = new HttpParams();
+    if (pares.length) {
+      params = params.set('pares', pares.join(','));
+    }
+    if (impares.length) {
+      params = params.set('impares', impares.join(','));
+    }
+    return this.http.get<LotofacilResult[]>(this.API_URL, { params });
   }
 }
