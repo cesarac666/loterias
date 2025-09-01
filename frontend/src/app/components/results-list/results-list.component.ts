@@ -9,6 +9,7 @@ import { ResultsService, LotofacilResult } from '../../results.service';
 export class ResultsListComponent implements OnInit {
   results: LotofacilResult[] = [];
   useParImpar = false;
+  useTresPorLinha = false;
   pares = '';
   impares = '';
 
@@ -29,7 +30,8 @@ export class ResultsListComponent implements OnInit {
       .filter(v => !isNaN(v));
     const pares = this.useParImpar ? paresVals : [];
     const impares = this.useParImpar ? imparesVals : [];
-    this.resultsService.getLastResults(pares, impares)
-      .subscribe(r => this.results = r);
+    this.resultsService
+      .getLastResults(pares, impares, this.useTresPorLinha)
+      .subscribe(r => (this.results = r));
   }
 }

@@ -4,6 +4,9 @@
   </label>
   <input type="text" placeholder="Pares" [(ngModel)]="pares" [disabled]="!useParImpar">
   <input type="text" placeholder="Ímpares" [(ngModel)]="impares" [disabled]="!useParImpar">
+  <label>
+    <input type="checkbox" [(ngModel)]="useTresPorLinha"> 3 por linha
+  </label>
   <button (click)="loadResults()">Aplicar</button>
 </div>
 

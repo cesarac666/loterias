@@ -1,6 +1,4 @@
-
 from flask import Flask, jsonify, request
-
 import sqlite3
 from pathlib import Path
 
@@ -14,9 +12,9 @@ def get_connection():
 
 @app.route('/api/results')
 def list_results():
-
     pares_param = request.args.get('pares', '')
     impares_param = request.args.get('impares', '')
+    tres_por_linha = request.args.get('tresPorLinha', '').lower() in ('1', 'true', 'on')
     pares = {int(p) for p in pares_param.split(',') if p}
     impares = {int(i) for i in impares_param.split(',') if i}
 
@@ -28,9 +26,11 @@ def list_results():
     rows = cur.fetchall()
     conn.close()
 
-    from filters import FiltroDezenasParesImpares
-    filtro = FiltroDezenasParesImpares(pares, impares, ativo=bool(pares or impares))
-    rows = filtro.apply(rows)
+    from filters import FiltroDezenasParesImpares, FiltroTresPorLinha
+    filtro_paridade = FiltroDezenasParesImpares(pares, impares, ativo=bool(pares or impares))
+    filtro_tres = FiltroTresPorLinha(ativo=tres_por_linha)
+    rows = filtro_paridade.apply(rows)
+    rows = filtro_tres.apply(rows)
 
     results = []
     for r in rows:
@@ -41,10 +41,8 @@ def list_results():
             'dezenas': dezenas,
             'ganhador': r['ganhador'],
         })
-
     results.sort(key=lambda x: x['concurso'], reverse=True)
     return jsonify(results[:10])
-
 
 @app.after_request
 def add_cors_headers(response):
