@@ -24,12 +24,12 @@ def list_results():
                         continue
         return nums
 
-    pares = _parse_int_list(request.args.getlist('pares'))
-    impares = _parse_int_list(request.args.getlist('impares'))
+    pares_param = request.args.get('pares', '')
+    impares_param = request.args.get('impares', '')
+    pares = _parse_int_list(request.args.getlist('pares') or [pares_param])
+    impares = _parse_int_list(request.args.getlist('impares') or [impares_param])
     tres_por_linha = request.args.get('tresPorLinha', '').lower() in ('1', 'true', 'on')
     concurso_limite = request.args.get('concursoLimite', type=int)
-    pares = {int(p) for p in pares_param.split(',') if p}
-    impares = {int(i) for i in impares_param.split(',') if i}
 
     conn = get_connection()
     cur = conn.execute(
