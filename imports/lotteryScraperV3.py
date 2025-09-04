@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import re
 import requests
-from bs4 import Tag
+from bs4 import Tag 
 from bs4 import BeautifulSoup
 
 class LotteryScraper:
@@ -139,11 +139,13 @@ class LotteryScraper:
         #print("data", data)
         #print(f"Tipo de 'titulo': {type(titulo)}")
         #print(f"Tipo de 'data': {type(data)}")
-    
+        
         return self.formatar_dados(titulo, data, numeros)
 
-    def retorna_df_ultimo_resultado(self):
-        data_str = self.retorno_resultado_online_site_novo()
+    def retorna_df_ultimo_resultado(self, atual=3045):
+        print("entrou aqui 1")
+        # data_str = self.retorno_resultado_online_site_novo()
+        data_str = self.retorna_todos_site_novo(atual)
         data_parts = data_str.split(',')
         if data_parts is None:
             print("No numbers to add")
@@ -212,4 +214,67 @@ class LotteryScraper:
         print(new_df.to_csv(index=False, header=False))
 
         return new_df
+    
+    def retorna_todos_site_novo (self, atual=3045):
+        # print("agora vai ...")
+        headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+    
+        url = "https://www.lotoloto.com.br/sorteios/lotofacil/" + str(atual) + "/"
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # print(soup)
+    
+        divs_numeros = soup.select('.item.ordem1 .numeros')
 
+        if(divs_numeros is None or len(divs_numeros) <= 0):
+            return None
+        
+        if(divs_numeros is not None and len(divs_numeros) > 0):
+            primeira_div = divs_numeros[0]
+            div_numeros = primeira_div.select('.num')
+    
+        div_titulo = soup.select('.item.ordem1 .titulo.fcCor')
+        div_data   = soup.select('.item.ordem1 .data')
+        #print("div_data", div_data[0])
+        # for numero in div_numeros:
+        #    print(numero.text.strip())
+        # print(div_numeros)
+        numeros = []
+        for numero in div_numeros:
+            isso = numero.text.strip()
+            numeros.append(int(isso))
+    
+        #print(numeros)
+        titulo = div_titulo[0]
+        #print("titulo", titulo)
+        data   = div_data[0]
+        #print("data", data)
+        #print(f"Tipo de 'titulo': {type(titulo)}")
+        #print(f"Tipo de 'data': {type(data)}")
+
+        return self.formatar_dados_novo(titulo, data, numeros)
+
+    def formatar_dados_novo(self, titulo, data, numeros):
+        # Simulando os elementos Tag para o exemplo
+        # titulo_html = BeautifulSoup('<div class="titulo fcCor"><h3>Concurso 3045</h3></div>', 'html.parser')
+        # data_html = BeautifulSoup('<div class="data"> 05/03/2024 </div>', 'html.parser')
+
+        titulo_html = titulo
+        data_html = data 
+        # Extraindo o texto do título e usando expressões regulares para encontrar o número
+        titulo_texto = titulo_html.find('h3').text  # "Concurso 3045"
+        numeros_concurso = re.search(r'\d+', titulo_texto)
+        if numeros_concurso:
+            numero_concurso = numeros_concurso.group(0)  # "3045"
+
+        # Extraindo e limpando a data
+        data_texto = data_html.text.strip()  # "05/03/2024"
+
+        #print(f'Número do Concurso: {numero_concurso}')
+        #print(f'Data: {data_texto}')
+        
+        # Junte tudo
+        resultado = f"{numero_concurso},{data_texto},{','.join(map(str, numeros))},77"
+        return resultado 

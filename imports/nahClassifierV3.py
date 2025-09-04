@@ -6,7 +6,7 @@ class NahClassifier:
     def getNahResults(self):
       self.dataframe['combNAH'] = self.dataframe[['countN', 'countA', 'countH']].apply(tuple, axis=1)
       combinações_frequentes = self.dataframe['combNAH'].value_counts()
-      combinações_top = combinações_frequentes.head(20)
+      combinações_top = combinações_frequentes.head(22)
       return(combinações_top)
 
     def count_combinations(self, df):

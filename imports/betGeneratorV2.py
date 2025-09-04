@@ -48,7 +48,11 @@ class BetGeneratorV2:
                 bet_dict = {'id': bet_id}
                 for j, number in enumerate(bet, 1):
                     bet_dict[f'B{j}'] = number
-                bets = bets.append(bet_dict, ignore_index=True)
+                # bets = bets.concat(bet_dict, ignore_index=True)
+                # Converter bet_dict em um DataFrame e concatenar com 
+                df_bet_dict = pd.DataFrame([bet_dict])  # Coloque bet_dict em uma lista para criar uma linha
+                bets = pd.concat([bets, df_bet_dict], ignore_index=True)
+
 
         return bets
 
@@ -124,7 +128,10 @@ class BetGeneratorV2:
                 bet_dict = {'id': bet_id}
                 for j, number in enumerate(sorted(bet_numbers), 1):
                     bet_dict[f'B{j}'] = number
-                bets = bets.append(bet_dict, ignore_index=True)
+                # bets = bets.concat(bet_dict, ignore_index=True)
+                df_bet_dict = pd.DataFrame([bet_dict])
+                bets = pd.concat([bets, df_bet_dict], ignore_index=True)
+                
 
         return bets
 
@@ -175,4 +182,3 @@ class ResultadosFiltrados(object):
         df_filtrado = self.df
         for filtro in self.filtros:
             df_filtrado = filtro.apply(df_filtrado)
-        return df_filtrado
