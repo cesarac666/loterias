@@ -34,3 +34,14 @@ class FiltroTresPorLinha:
             if all(l == 3 for l in linhas):
                 filtrados.append(r)
         return filtrados
+
+
+class FiltroConcursoLimite:
+    def __init__(self, limite=None, ativo=True):
+        self.limite = limite
+        self.ativo = ativo and limite is not None
+
+    def apply(self, rows):
+        if not self.ativo:
+            return list(rows)
+        return [r for r in rows if r['concurso'] <= self.limite]

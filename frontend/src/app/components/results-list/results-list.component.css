@@ -10,6 +10,10 @@
   border: 1px solid #555;
  }
 
+ .record-count {
+  margin: 10px 0;
+ }
+
  table {
   width: 100%;
   border-collapse: collapse;

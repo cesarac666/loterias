@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ResultsService, LotofacilResult } from '../../results.service';
+import { ResultsService, LotofacilResult, ResultsResponse } from '../../results.service';
 
 @Component({
   selector: 'app-results-list',
@@ -12,6 +12,8 @@ export class ResultsListComponent implements OnInit {
   useTresPorLinha = false;
   pares = '';
   impares = '';
+  concursoLimite = '';
+  totalRegistros = 0;
 
   constructor(private resultsService: ResultsService) {}
 
@@ -30,8 +32,13 @@ export class ResultsListComponent implements OnInit {
       .filter(v => !isNaN(v));
     const pares = this.useParImpar ? paresVals : [];
     const impares = this.useParImpar ? imparesVals : [];
+    const limiteVal = parseInt(this.concursoLimite, 10);
+    const limite = isNaN(limiteVal) ? undefined : limiteVal;
     this.resultsService
-      .getLastResults(pares, impares, this.useTresPorLinha)
-      .subscribe(r => (this.results = r));
+      .getLastResults(pares, impares, this.useTresPorLinha, limite)
+      .subscribe((r: ResultsResponse) => {
+        this.results = r.results;
+        this.totalRegistros = r.total;
+      });
   }
 }
