@@ -28,6 +28,8 @@ def list_results():
     impares = _parse_int_list(request.args.getlist('impares'))
     tres_por_linha = request.args.get('tresPorLinha', '').lower() in ('1', 'true', 'on')
     concurso_limite = request.args.get('concursoLimite', type=int)
+    pares = {int(p) for p in pares_param.split(',') if p}
+    impares = {int(i) for i in impares_param.split(',') if i}
 
     conn = get_connection()
     cur = conn.execute(
