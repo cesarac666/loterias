@@ -1,3 +1,4 @@
+<h1 class="title">Resultados da Lotofácil</h1>
 <div class="filters">
   <label>
     <input type="checkbox" [(ngModel)]="useParImpar"> Par Ímpar
@@ -7,8 +8,11 @@
   <label>
     <input type="checkbox" [(ngModel)]="useTresPorLinha"> 3 por linha
   </label>
+  <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
   <button (click)="loadResults()">Aplicar</button>
 </div>
+
+<p class="record-count">Total de registros: {{ totalRegistros }}</p>
 
 <h2>Últimos 10 resultados</h2>
 <table>
