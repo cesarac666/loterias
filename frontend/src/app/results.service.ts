@@ -9,6 +9,11 @@ export interface LotofacilResult {
   ganhador: number;
 }
 
+export interface ResultsResponse {
+  total: number;
+  results: LotofacilResult[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -20,18 +25,26 @@ export class ResultsService {
   getLastResults(
     pares: number[] = [],
     impares: number[] = [],
-    tresPorLinha = false
-  ): Observable<LotofacilResult[]> {
+    tresPorLinha = false,
+    concursoLimite?: number
+  ): Observable<ResultsResponse> {
     let params = new HttpParams();
     if (pares.length) {
-      params = params.set('pares', pares.join(','));
+      pares.forEach(p => {
+        params = params.append('pares', p.toString());
+      });
     }
     if (impares.length) {
-      params = params.set('impares', impares.join(','));
+      impares.forEach(i => {
+        params = params.append('impares', i.toString());
+      });
     }
     if (tresPorLinha) {
       params = params.set('tresPorLinha', 'true');
     }
-    return this.http.get<LotofacilResult[]>(this.API_URL, { params });
+    if (concursoLimite !== undefined) {
+      params = params.set('concursoLimite', concursoLimite.toString());
+    }
+    return this.http.get<ResultsResponse>(this.API_URL, { params });
   }
 }

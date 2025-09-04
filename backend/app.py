@@ -12,11 +12,22 @@ def get_connection():
 
 @app.route('/api/results')
 def list_results():
-    pares_param = request.args.get('pares', '')
-    impares_param = request.args.get('impares', '')
+    def _parse_int_list(values):
+        nums = set()
+        for v in values:
+            for part in v.replace(';', ',').split(','):
+                part = part.strip()
+                if part:
+                    try:
+                        nums.add(int(part))
+                    except ValueError:
+                        continue
+        return nums
+
+    pares = _parse_int_list(request.args.getlist('pares'))
+    impares = _parse_int_list(request.args.getlist('impares'))
     tres_por_linha = request.args.get('tresPorLinha', '').lower() in ('1', 'true', 'on')
-    pares = {int(p) for p in pares_param.split(',') if p}
-    impares = {int(i) for i in impares_param.split(',') if i}
+    concurso_limite = request.args.get('concursoLimite', type=int)
 
     conn = get_connection()
     cur = conn.execute(
@@ -26,12 +37,15 @@ def list_results():
     rows = cur.fetchall()
     conn.close()
 
-    from filters import FiltroDezenasParesImpares, FiltroTresPorLinha
+    from filters import FiltroDezenasParesImpares, FiltroTresPorLinha, FiltroConcursoLimite
     filtro_paridade = FiltroDezenasParesImpares(pares, impares, ativo=bool(pares or impares))
     filtro_tres = FiltroTresPorLinha(ativo=tres_por_linha)
+    filtro_limite = FiltroConcursoLimite(concurso_limite, ativo=concurso_limite is not None)
     rows = filtro_paridade.apply(rows)
     rows = filtro_tres.apply(rows)
+    rows = filtro_limite.apply(rows)
 
+    total = len(rows)
     results = []
     for r in rows:
         dezenas = [r[f'n{i}'] for i in range(1, 16)]
@@ -42,7 +56,7 @@ def list_results():
             'ganhador': r['ganhador'],
         })
     results.sort(key=lambda x: x['concurso'], reverse=True)
-    return jsonify(results[:10])
+    return jsonify({'total': total, 'results': results[:10]})
 
 @app.after_request
 def add_cors_headers(response):

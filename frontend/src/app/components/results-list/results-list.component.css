@@ -1,14 +1,30 @@
-table {
+ .title {
+  font-size: 2.5rem;
+  margin-bottom: 20px;
+ }
+
+ .filters input,
+ .filters button {
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #555;
+ }
+
+ .record-count {
+  margin: 10px 0;
+ }
+
+ table {
   width: 100%;
   border-collapse: collapse;
-}
+ }
 
-th, td {
-  border: 1px solid #ddd;
+ th, td {
+  border: 1px solid #555;
   padding: 4px;
   text-align: center;
-}
+ }
 
-th {
-  background-color: #f2f2f2;
-}
+ th {
+  background-color: #222;
+ }

@@ -74,10 +74,10 @@ class FiltroTresPorLinha(Filtro):
 
 
 class FiltroDezenasParesImpares(Filtro):
-    def __init__(self, dezenas_pares, dezenas_impares, ativo=True):
+    def __init__(self, dezenas_pares=None, dezenas_impares=None, ativo=True):
         super().__init__(ativo)
-        self.dezenas_pares = dezenas_pares
-        self.dezenas_impares = dezenas_impares
+        self.dezenas_pares = set(dezenas_pares or [])
+        self.dezenas_impares = set(dezenas_impares or [])
 
     def apply(self, df):
         if self.ativo:
@@ -88,7 +88,8 @@ class FiltroDezenasParesImpares(Filtro):
                 numbers = {row[f'B{j}'] for j in range(1, 16)}
                 par_count = sum(1 for num in numbers if num % 2 == 0)
                 impar_count = sum(1 for num in numbers if num % 2 != 0)
-                if par_count in self.dezenas_pares and impar_count in self.dezenas_impares:
+                if (not self.dezenas_pares or par_count in self.dezenas_pares) and \
+                   (not self.dezenas_impares or impar_count in self.dezenas_impares):
                     rows.append(row)
             return pd.DataFrame(rows, columns=df.columns)
         else:
