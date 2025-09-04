@@ -23,12 +23,14 @@ export class ResultsListComponent implements OnInit {
 
   loadResults(): void {
     const paresVals = this.pares
+      .replace(/;/g, ',')
       .split(',')
-      .map(v => parseInt(v, 10))
+      .map(v => parseInt(v.trim(), 10))
       .filter(v => !isNaN(v));
     const imparesVals = this.impares
+      .replace(/;/g, ',')
       .split(',')
-      .map(v => parseInt(v, 10))
+      .map(v => parseInt(v.trim(), 10))
       .filter(v => !isNaN(v));
     const pares = this.useParImpar ? paresVals : [];
     const impares = this.useParImpar ? imparesVals : [];

@@ -30,10 +30,14 @@ export class ResultsService {
   ): Observable<ResultsResponse> {
     let params = new HttpParams();
     if (pares.length) {
-      params = params.set('pares', pares.join(','));
+      pares.forEach(p => {
+        params = params.append('pares', p.toString());
+      });
     }
     if (impares.length) {
-      params = params.set('impares', impares.join(','));
+      impares.forEach(i => {
+        params = params.append('impares', i.toString());
+      });
     }
     if (tresPorLinha) {
       params = params.set('tresPorLinha', 'true');

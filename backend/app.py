@@ -12,8 +12,20 @@ def get_connection():
 
 @app.route('/api/results')
 def list_results():
-    pares_param = request.args.get('pares', '')
-    impares_param = request.args.get('impares', '')
+    def _parse_int_list(values):
+        nums = set()
+        for v in values:
+            for part in v.replace(';', ',').split(','):
+                part = part.strip()
+                if part:
+                    try:
+                        nums.add(int(part))
+                    except ValueError:
+                        continue
+        return nums
+
+    pares = _parse_int_list(request.args.getlist('pares'))
+    impares = _parse_int_list(request.args.getlist('impares'))
     tres_por_linha = request.args.get('tresPorLinha', '').lower() in ('1', 'true', 'on')
     concurso_limite = request.args.get('concursoLimite', type=int)
     pares = {int(p) for p in pares_param.split(',') if p}
