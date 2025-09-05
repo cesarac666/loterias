@@ -5,12 +5,6 @@
   </label>
   <input type="text" placeholder="Pares (ex: 6,7,8)" [(ngModel)]="pares" [disabled]="!useParImpar">
   <input type="text" placeholder="Ímpares (ex: 7,8)" [(ngModel)]="impares" [disabled]="!useParImpar">
-  <label>
-    <input type="radio" name="fonte" [(ngModel)]="useTresPorLinha" [value]="false"> Últimos resultados
-  </label>
-  <label>
-    <input type="radio" name="fonte" [(ngModel)]="useTresPorLinha" [value]="true"> 3 por linha
-  </label>
   <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
   <button (click)="loadResults()">Aplicar</button>
 </div>

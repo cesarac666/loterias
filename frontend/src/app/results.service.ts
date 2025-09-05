@@ -26,7 +26,6 @@ export class ResultsService {
   getLastResults(
     pares: number[] = [],
     impares: number[] = [],
-    tresPorLinha = false,
     concursoLimite?: number
   ): Observable<ResultsResponse> {
     let params = new HttpParams();
@@ -39,9 +38,6 @@ export class ResultsService {
       impares.forEach(i => {
         params = params.append('impares', i.toString());
       });
-    }
-    if (tresPorLinha) {
-      params = params.set('tresPorLinha', 'true');
     }
     if (concursoLimite !== undefined) {
       params = params.set('concursoLimite', concursoLimite.toString());

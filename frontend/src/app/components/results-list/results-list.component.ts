@@ -9,7 +9,6 @@ import { ResultsService, LotofacilResult, ResultsResponse } from '../../results.
 export class ResultsListComponent implements OnInit {
   results: LotofacilResult[] = [];
   useParImpar = false;
-  useTresPorLinha = false;
   pares = '';
   impares = '';
   concursoLimite = '';
@@ -37,7 +36,7 @@ export class ResultsListComponent implements OnInit {
     const limiteVal = parseInt(this.concursoLimite, 10);
     const limite = isNaN(limiteVal) ? undefined : limiteVal;
     this.resultsService
-      .getLastResults(pares, impares, this.useTresPorLinha, limite)
+      .getLastResults(pares, impares, limite)
       .subscribe((r: ResultsResponse) => {
         this.results = r.results;
         this.totalRegistros = r.total;
