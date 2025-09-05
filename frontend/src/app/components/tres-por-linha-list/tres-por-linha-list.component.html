@@ -1,0 +1,28 @@
+<h1 class="title">Apostas 3 por linha</h1>
+<div class="filters">
+  <label>
+    <input type="checkbox" [(ngModel)]="useParImpar"> Par Ímpar
+  </label>
+  <input type="text" placeholder="Pares (ex: 6,7,8)" [(ngModel)]="pares" [disabled]="!useParImpar">
+  <input type="text" placeholder="Ímpares (ex: 7,8)" [(ngModel)]="impares" [disabled]="!useParImpar">
+  <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
+  <button (click)="loadResults()">Aplicar</button>
+</div>
+
+<p class="record-count">Total de registros: {{ totalRegistros }}</p>
+
+<h2>Primeiros 10 registros</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Concurso</th>
+      <th>Dezenas</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let r of results">
+      <td>{{ r.concurso }}</td>
+      <td>{{ r.dezenas.join(', ') }}</td>
+    </tr>
+  </tbody>
+</table>

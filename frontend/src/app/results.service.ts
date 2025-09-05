@@ -19,6 +19,7 @@ export interface ResultsResponse {
 })
 export class ResultsService {
   private readonly API_URL = 'http://localhost:5000/api/results';
+  private readonly BETS_URL = 'http://localhost:5000/api/apostas';
 
   constructor(private http: HttpClient) {}
 
@@ -46,5 +47,27 @@ export class ResultsService {
       params = params.set('concursoLimite', concursoLimite.toString());
     }
     return this.http.get<ResultsResponse>(this.API_URL, { params });
+  }
+
+  getTresPorLinhaBets(
+    pares: number[] = [],
+    impares: number[] = [],
+    concursoLimite?: number
+  ): Observable<ResultsResponse> {
+    let params = new HttpParams();
+    if (pares.length) {
+      pares.forEach(p => {
+        params = params.append('pares', p.toString());
+      });
+    }
+    if (impares.length) {
+      impares.forEach(i => {
+        params = params.append('impares', i.toString());
+      });
+    }
+    if (concursoLimite !== undefined) {
+      params = params.set('concursoLimite', concursoLimite.toString());
+    }
+    return this.http.get<ResultsResponse>(this.BETS_URL, { params });
   }
 }
