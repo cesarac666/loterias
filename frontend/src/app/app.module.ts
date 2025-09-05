@@ -5,13 +5,15 @@ import { FormsModule } from '@angular/forms';
 
 import { AppComponent } from './app.component';
 import { ResultsListComponent } from './components/results-list/results-list.component';
+import { TresPorLinhaListComponent } from './components/tres-por-linha-list/tres-por-linha-list.component';
 import { AppRoutingModule } from './app-routing.module';
 
 
 @NgModule({
   declarations: [
     AppComponent,
-    ResultsListComponent
+    ResultsListComponent,
+    TresPorLinhaListComponent
   ],
   imports: [
     BrowserModule,

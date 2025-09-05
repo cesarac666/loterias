@@ -72,6 +72,57 @@ def list_results():
     results.sort(key=lambda x: x['concurso'], reverse=True)
     return jsonify({'total': total, 'results': results[:10]})
 
+
+@app.route('/api/apostas')
+def list_apostas():
+    def _parse_int_list(values):
+        nums = set()
+        for v in values:
+            for part in v.replace(';', ',').split(','):
+                part = part.strip()
+                if part:
+                    try:
+                        nums.add(int(part))
+                    except ValueError:
+                        continue
+        return nums
+
+    pares_param = request.args.get('pares', '')
+    impares_param = request.args.get('impares', '')
+    pares = _parse_int_list(request.args.getlist('pares') or [pares_param])
+    impares = _parse_int_list(request.args.getlist('impares') or [impares_param])
+    concurso_limite = request.args.get('concursoLimite', type=int)
+
+    csv_path = Path(__file__).resolve().parent.parent / 'todasTresPorLinha.csv'
+    with csv_path.open(newline='') as f:
+        reader = csv.DictReader(f)
+        rows = []
+        for idx, row in enumerate(reader, start=1):
+            data_row = {f'n{i}': int(row[f'B{i}']) for i in range(1, 16)}
+            data_row['concurso'] = idx
+            data_row['data'] = ''
+            data_row['ganhador'] = 0
+            rows.append(data_row)
+
+    from filters import FiltroDezenasParesImpares, FiltroConcursoLimite
+    filtro_paridade = FiltroDezenasParesImpares(pares, impares, ativo=bool(pares or impares))
+    filtro_limite = FiltroConcursoLimite(concurso_limite, ativo=concurso_limite is not None)
+    rows = filtro_paridade.apply(rows)
+    rows = filtro_limite.apply(rows)
+
+    total = len(rows)
+    results = []
+    for r in rows:
+        dezenas = [r[f'n{i}'] for i in range(1, 16)]
+        results.append({
+            'concurso': r['concurso'],
+            'data': r['data'],
+            'dezenas': dezenas,
+            'ganhador': r['ganhador'],
+        })
+    results.sort(key=lambda x: x['concurso'])
+    return jsonify({'total': total, 'results': results[:10]})
+
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
