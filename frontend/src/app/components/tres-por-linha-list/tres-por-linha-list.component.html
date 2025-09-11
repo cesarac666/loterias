@@ -17,12 +17,16 @@
     <tr>
       <th>Concurso</th>
       <th>Dezenas</th>
+      <th>Pares</th>
+      <th>Ímpares</th>
     </tr>
   </thead>
   <tbody>
     <tr *ngFor="let r of results">
       <td>{{ r.concurso }}</td>
       <td>{{ r.dezenas.join(', ') }}</td>
+      <td>{{ r.qtdPares }}</td>
+      <td>{{ r.qtdImpares }}</td>
     </tr>
   </tbody>
 </table>

@@ -18,6 +18,8 @@
       <th>Concurso</th>
       <th>Data</th>
       <th>Dezenas</th>
+      <th>Pares</th>
+      <th>Ímpares</th>
     </tr>
   </thead>
   <tbody>
@@ -25,6 +27,8 @@
       <td>{{ r.concurso }}</td>
       <td>{{ r.data }}</td>
       <td>{{ r.dezenas.join(', ') }}</td>
+      <td>{{ r.qtdPares }}</td>
+      <td>{{ r.qtdImpares }}</td>
     </tr>
   </tbody>
 </table>
