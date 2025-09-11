@@ -50,11 +50,15 @@ def list_results():
     results = []
     for r in rows:
         dezenas = [r[f'n{i}'] for i in range(1, 16)]
+        qtd_pares = sum(1 for d in dezenas if d % 2 == 0)
+        qtd_impares = len(dezenas) - qtd_pares
         results.append({
             'concurso': r['concurso'],
             'data': r['data'],
             'dezenas': dezenas,
             'ganhador': r['ganhador'],
+            'qtdPares': qtd_pares,
+            'qtdImpares': qtd_impares,
         })
     results.sort(key=lambda x: x['concurso'], reverse=True)
     return jsonify({'total': total, 'results': results[:10]})
@@ -101,11 +105,15 @@ def list_apostas():
     results = []
     for r in rows:
         dezenas = [r[f'n{i}'] for i in range(1, 16)]
+        qtd_pares = sum(1 for d in dezenas if d % 2 == 0)
+        qtd_impares = len(dezenas) - qtd_pares
         results.append({
             'concurso': r['concurso'],
             'data': r['data'],
             'dezenas': dezenas,
             'ganhador': r['ganhador'],
+            'qtdPares': qtd_pares,
+            'qtdImpares': qtd_impares,
         })
     results.sort(key=lambda x: x['concurso'])
     return jsonify({'total': total, 'results': results[:10]})
