@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
 import { ResultsService, LotofacilResult, ResultsResponse } from '../../results.service';
 
 @Component({
@@ -6,13 +6,15 @@ import { ResultsService, LotofacilResult, ResultsResponse } from '../../results.
   templateUrl: './results-list.component.html',
   styleUrls: ['./results-list.component.css']
 })
-export class ResultsListComponent implements OnInit {
+export class ResultsListComponent implements OnInit, AfterViewInit {
   results: LotofacilResult[] = [];
   useParImpar = false;
   pares = '';
   impares = '';
   concursoLimite = '';
   totalRegistros = 0;
+
+  @ViewChild('patternChart') canvasRef!: ElementRef<HTMLCanvasElement>;
 
   constructor(private resultsService: ResultsService) {}
 
@@ -40,12 +42,16 @@ export class ResultsListComponent implements OnInit {
       .subscribe((r: ResultsResponse) => {
         this.results = r.results;
         this.totalRegistros = r.total;
-        setTimeout(() => this.drawChart(), 0);
+        this.drawChart();
       });
   }
 
+  ngAfterViewInit(): void {
+    this.drawChart();
+  }
+
   drawChart(): void {
-    const canvas = document.getElementById('patternChart') as HTMLCanvasElement | null;
+    const canvas = this.canvasRef?.nativeElement;
     if (!canvas) {
       return;
     }
