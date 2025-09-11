@@ -18,6 +18,9 @@
       <th>Concurso</th>
       <th>Data</th>
       <th>Dezenas</th>
+      <th>Pares</th>
+      <th>Ímpares</th>
+      <th>Padrão Linha</th>
     </tr>
   </thead>
   <tbody>
@@ -25,6 +28,12 @@
       <td>{{ r.concurso }}</td>
       <td>{{ r.data }}</td>
       <td>{{ r.dezenas.join(', ') }}</td>
+      <td>{{ r.qtdPares }}</td>
+      <td>{{ r.qtdImpares }}</td>
+      <td>{{ r.padraoLinha }}</td>
     </tr>
   </tbody>
 </table>
+
+<h2>Tendência por padrão</h2>
+<canvas id="patternChart" width="600" height="300"></canvas>

@@ -40,6 +40,56 @@ export class ResultsListComponent implements OnInit {
       .subscribe((r: ResultsResponse) => {
         this.results = r.results;
         this.totalRegistros = r.total;
+        setTimeout(() => this.drawChart(), 0);
       });
+  }
+
+  drawChart(): void {
+    const canvas = document.getElementById('patternChart') as HTMLCanvasElement | null;
+    if (!canvas) {
+      return;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const sorted = [...this.results].sort((a, b) => a.concurso - b.concurso);
+    const patterns = ['3 por linha', 'quase 3 por linha', '1 linha completa'];
+    const colors = ['#007bff', '#28a745', '#dc3545'];
+    const series: number[][] = patterns.map(() => []);
+    const counts = [0, 0, 0];
+    sorted.forEach(r => {
+      const idx = patterns.indexOf(r.padraoLinha);
+      if (idx >= 0) {
+        counts[idx] += 1;
+      }
+      patterns.forEach((_, i) => series[i].push(counts[i]));
+    });
+    const maxY = Math.max(1, ...series.flat());
+    const stepX = sorted.length > 1 ? canvas.width / (sorted.length - 1) : canvas.width;
+    const scaleY = (canvas.height - 20) / maxY;
+    patterns.forEach((_, i) => {
+      ctx.beginPath();
+      ctx.strokeStyle = colors[i];
+      series[i].forEach((y, j) => {
+        const x = j * stepX;
+        const yPos = canvas.height - y * scaleY - 10;
+        if (j === 0) {
+          ctx.moveTo(x, yPos);
+        } else {
+          ctx.lineTo(x, yPos);
+        }
+      });
+      ctx.stroke();
+    });
+    let lx = 10, ly = 10;
+    patterns.forEach((p, i) => {
+      ctx.fillStyle = colors[i];
+      ctx.fillRect(lx, ly - 8, 10, 10);
+      ctx.fillStyle = '#000';
+      ctx.fillText(p, lx + 15, ly);
+      ly += 15;
+    });
   }
 }
