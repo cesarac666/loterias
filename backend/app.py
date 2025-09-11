@@ -67,6 +67,7 @@ def list_results():
         for d in dezenas:
             lines[(d-1)//5] += 1
         padrao = classify_pattern(lines)
+
         results.append({
             'concurso': r['concurso'],
             'data': r['data'],
