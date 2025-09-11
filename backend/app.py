@@ -7,9 +7,18 @@ app = Flask(__name__)
 DB_PATH = Path(__file__).with_name('lotofacil.db')
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Create a read-only connection to the SQLite database.
+
+    Returns None if the database file is missing, logging the error for
+    diagnostic purposes.
+    """
+    try:
+        conn = sqlite3.connect(f'file:{DB_PATH}?mode=ro', uri=True)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.OperationalError as exc:
+        app.logger.error('Failed to connect to database %s: %s', DB_PATH, exc)
+        return None
 
 
 def classify_pattern(lines):
@@ -47,6 +56,9 @@ def list_results():
     filtro_limite = FiltroConcursoLimite(concurso_limite, ativo=concurso_limite is not None)
 
     conn = get_connection()
+    if conn is None:
+        app.logger.warning('lotofacil.db not found; returning empty results')
+        return jsonify({'error': 'lotofacil.db not found', 'total': 0, 'results': []}), 500
     cur = conn.execute(
         'SELECT concurso, data, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, ganhador '
         'FROM results'
