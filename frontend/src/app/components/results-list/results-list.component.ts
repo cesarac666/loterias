@@ -55,6 +55,7 @@ export class ResultsListComponent implements OnInit {
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const sorted = [...this.results].sort((a, b) => a.concurso - b.concurso);
+
     const patterns = ['3 por linha', 'quase 3 por linha', '1 linha completa', 'outro'];
     const colors = ['#007bff', '#28a745', '#dc3545', '#ffc107'];
     const series: number[][] = patterns.map(() => []);
@@ -69,13 +70,16 @@ export class ResultsListComponent implements OnInit {
     });
     const maxY = Math.max(1, ...series.flat());
     const stepX = sorted.length > 1 ? canvas.width / (sorted.length - 1) : canvas.width;
+
     const scaleY = (canvas.height - 30) / maxY;
+
     patterns.forEach((_, i) => {
       ctx.beginPath();
       ctx.strokeStyle = colors[i];
       series[i].forEach((y, j) => {
         const x = j * stepX;
         const yPos = canvas.height - y * scaleY - 20;
+
         if (j === 0) {
           ctx.moveTo(x, yPos);
         } else {
@@ -93,12 +97,13 @@ export class ResultsListComponent implements OnInit {
         ctx.fillStyle = '#fff';
         ctx.fillText(String(y), x + 5, yPos - 5);
       });
-    });
+      
     let lx = 10, ly = 10;
     patterns.forEach((p, i) => {
       ctx.fillStyle = colors[i];
       ctx.fillRect(lx, ly - 8, 10, 10);
       ctx.fillStyle = '#fff';
+
       ctx.fillText(p, lx + 15, ly);
       ly += 15;
     });
