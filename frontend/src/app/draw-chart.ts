@@ -12,12 +12,14 @@ export function drawChart(canvas: HTMLCanvasElement, results: LotofacilResult[])
   const series: number[][] = patterns.map(() => []);
   const counts = new Array(patterns.length).fill(0);
   sorted.forEach((r: LotofacilResult) => {
+
     let idx = patterns.indexOf(r.padraoLinha);
     if (idx === -1) {
       idx = patterns.indexOf('outro');
     }
     counts[idx] += 1;
     patterns.forEach((_, i: number) => series[i].push(counts[i]));
+
   });
   const maxY = Math.max(1, ...series.flat());
   const stepX = sorted.length > 1 ? canvas.width / (sorted.length - 1) : canvas.width;
@@ -26,6 +28,7 @@ export function drawChart(canvas: HTMLCanvasElement, results: LotofacilResult[])
     ctx.beginPath();
     ctx.strokeStyle = colors[i];
     series[i].forEach((y: number, j: number) => {
+
       const x = j * stepX;
       const yPos = canvas.height - y * scaleY - 20;
       if (j === 0) {
@@ -36,6 +39,7 @@ export function drawChart(canvas: HTMLCanvasElement, results: LotofacilResult[])
     });
     ctx.stroke();
     series[i].forEach((y: number, j: number) => {
+
       const x = j * stepX;
       const yPos = canvas.height - y * scaleY - 20;
       ctx.fillStyle = colors[i];
@@ -49,6 +53,7 @@ export function drawChart(canvas: HTMLCanvasElement, results: LotofacilResult[])
   let lx = 10,
     ly = 10;
   patterns.forEach((p: string, i: number) => {
+
     ctx.fillStyle = colors[i];
     ctx.fillRect(lx, ly - 8, 10, 10);
     ctx.fillStyle = '#fff';
