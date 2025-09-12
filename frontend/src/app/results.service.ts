@@ -45,6 +45,9 @@ export class ResultsService {
     if (padraoLinha) {
       params.padraoLinha = padraoLinha;
     }
+    if (padraoLinha) {
+      params = params.set('padraoLinha', padraoLinha);
+    }
     return this.http.get<ResultsResponse>(this.API_URL, { params });
   }
 
