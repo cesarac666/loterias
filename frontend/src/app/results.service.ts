@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface LotofacilResult {
@@ -7,6 +7,9 @@ export interface LotofacilResult {
   data: string;
   dezenas: number[];
   ganhador: number;
+  qtdPares: number;
+  qtdImpares: number;
+  padraoLinha: string;
 }
 
 export interface ResultsResponse {
@@ -26,21 +29,21 @@ export class ResultsService {
   getLastResults(
     pares: number[] = [],
     impares: number[] = [],
-    concursoLimite?: number
+    concursoLimite?: number,
+    padraoLinha?: string
   ): Observable<ResultsResponse> {
-    let params = new HttpParams();
+    const params: any = {};
     if (pares.length) {
-      pares.forEach(p => {
-        params = params.append('pares', p.toString());
-      });
+      params.pares = pares.join(',');
     }
     if (impares.length) {
-      impares.forEach(i => {
-        params = params.append('impares', i.toString());
-      });
+      params.impares = impares.join(',');
     }
     if (concursoLimite !== undefined) {
-      params = params.set('concursoLimite', concursoLimite.toString());
+      params.concursoLimite = concursoLimite.toString();
+    }
+    if (padraoLinha) {
+      params.padraoLinha = padraoLinha;
     }
     return this.http.get<ResultsResponse>(this.API_URL, { params });
   }
@@ -50,19 +53,15 @@ export class ResultsService {
     impares: number[] = [],
     concursoLimite?: number
   ): Observable<ResultsResponse> {
-    let params = new HttpParams();
+    const params: any = {};
     if (pares.length) {
-      pares.forEach(p => {
-        params = params.append('pares', p.toString());
-      });
+      params.pares = pares.join(',');
     }
     if (impares.length) {
-      impares.forEach(i => {
-        params = params.append('impares', i.toString());
-      });
+      params.impares = impares.join(',');
     }
     if (concursoLimite !== undefined) {
-      params = params.set('concursoLimite', concursoLimite.toString());
+      params.concursoLimite = concursoLimite.toString();
     }
     return this.http.get<ResultsResponse>(this.BETS_URL, { params });
   }

@@ -5,6 +5,13 @@
   </label>
   <input type="text" placeholder="Pares (ex: 6,7,8)" [(ngModel)]="pares" [disabled]="!useParImpar">
   <input type="text" placeholder="Ímpares (ex: 7,8)" [(ngModel)]="impares" [disabled]="!useParImpar">
+  <select [(ngModel)]="padraoLinha">
+    <option value="">Todos</option>
+    <option value="outro">outro</option>
+    <option value="1 linha completa">1 linha completa</option>
+    <option value="3 por linha">3 por linha</option>
+    <option value="quase 3 por linha">quase 3 por linha</option>
+  </select>
   <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
   <button (click)="loadResults()">Aplicar</button>
 </div>
@@ -18,6 +25,9 @@
       <th>Concurso</th>
       <th>Data</th>
       <th>Dezenas</th>
+      <th>Pares</th>
+      <th>Ímpares</th>
+      <th>Padrão Linha</th>
     </tr>
   </thead>
   <tbody>
@@ -25,6 +35,12 @@
       <td>{{ r.concurso }}</td>
       <td>{{ r.data }}</td>
       <td>{{ r.dezenas.join(', ') }}</td>
+      <td>{{ r.qtdPares }}</td>
+      <td>{{ r.qtdImpares }}</td>
+      <td>{{ r.padraoLinha }}</td>
     </tr>
   </tbody>
 </table>
+
+<h2>Tendência por padrão (últimos 500 resultados)</h2>
+<canvas #patternChart width="600" height="300"></canvas>
