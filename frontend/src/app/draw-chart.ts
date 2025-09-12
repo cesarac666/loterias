@@ -18,7 +18,6 @@ export function drawChart(canvas: HTMLCanvasElement, results: LotofacilResult[])
       idx = patterns.indexOf('outro');
     }
     counts[idx] += 1;
-
     patterns.forEach((_, i: number) => series[i].push(counts[i]));
 
   });

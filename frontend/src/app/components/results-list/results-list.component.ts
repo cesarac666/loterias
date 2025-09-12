@@ -14,10 +14,9 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
   useParImpar = false;
   pares = '';
   impares = '';
+  padraoLinha = '';
   concursoLimite = '';
   totalRegistros = 0;
-  @ViewChild('patternChart') patternChartCanvas?: ElementRef<HTMLCanvasElement>;
-
   @ViewChild('patternChart') patternChartCanvas?: ElementRef<HTMLCanvasElement>;
 
 
@@ -47,7 +46,7 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
     const limiteVal = parseInt(this.concursoLimite, 10);
     const limite = isNaN(limiteVal) ? undefined : limiteVal;
     this.resultsService
-      .getLastResults(pares, impares, limite)
+      .getLastResults(pares, impares, limite, this.padraoLinha)
       .subscribe((r: ResultsResponse) => {
         this.chartResults = r.results;
         this.results = r.results.slice(0, 10);
@@ -65,6 +64,13 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
       return;
     }
     drawChart(canvas, this.results);
+  }
+  renderChart(): void {
+    const canvas = this.patternChartCanvas?.nativeElement;
+    if (!canvas) {
+      return;
+    }
+    drawChart(canvas, this.chartResults);
   }
   renderChart(): void {
     const canvas = this.patternChartCanvas?.nativeElement;

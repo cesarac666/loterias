@@ -5,6 +5,13 @@
   </label>
   <input type="text" placeholder="Pares (ex: 6,7,8)" [(ngModel)]="pares" [disabled]="!useParImpar">
   <input type="text" placeholder="Ímpares (ex: 7,8)" [(ngModel)]="impares" [disabled]="!useParImpar">
+  <select [(ngModel)]="padraoLinha">
+    <option value="">Todos</option>
+    <option value="outro">outro</option>
+    <option value="1 linha completa">1 linha completa</option>
+    <option value="3 por linha">3 por linha</option>
+    <option value="quase 3 por linha">quase 3 por linha</option>
+  </select>
   <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
   <button (click)="loadResults()">Aplicar</button>
 </div>
