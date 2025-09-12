@@ -11,6 +11,17 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+
+def classify_pattern(lines):
+    counts = {c: lines.count(c) for c in set(lines)}
+    if all(c == 3 for c in lines):
+        return '3 por linha'
+    if counts.get(3, 0) == 3 and counts.get(2, 0) == 1 and counts.get(4, 0) == 1:
+        return 'quase 3 por linha'
+    if 5 in lines:
+        return '1 linha completa'
+    return 'outro'
+
 @app.route('/api/results')
 def list_results():
     def _parse_int_list(values):
@@ -30,6 +41,7 @@ def list_results():
     pares = _parse_int_list(request.args.getlist('pares') or [pares_param])
     impares = _parse_int_list(request.args.getlist('impares') or [impares_param])
     concurso_limite = request.args.get('concursoLimite', type=int)
+    padrao_linha = request.args.get('padraoLinha')
 
     from filters import FiltroDezenasParesImpares, FiltroConcursoLimite
     filtro_paridade = FiltroDezenasParesImpares(pares, impares, ativo=bool(pares or impares))
@@ -46,18 +58,29 @@ def list_results():
     rows = filtro_paridade.apply(rows)
     rows = filtro_limite.apply(rows)
 
-    total = len(rows)
     results = []
     for r in rows:
         dezenas = [r[f'n{i}'] for i in range(1, 16)]
+        qtd_pares = sum(1 for d in dezenas if d % 2 == 0)
+        qtd_impares = len(dezenas) - qtd_pares
+        lines = [0]*5
+        for d in dezenas:
+            lines[(d-1)//5] += 1
+        padrao = classify_pattern(lines)
+        if padrao_linha and padrao != padrao_linha:
+            continue
         results.append({
             'concurso': r['concurso'],
             'data': r['data'],
             'dezenas': dezenas,
             'ganhador': r['ganhador'],
+            'qtdPares': qtd_pares,
+            'qtdImpares': qtd_impares,
+            'padraoLinha': padrao,
         })
     results.sort(key=lambda x: x['concurso'], reverse=True)
-    return jsonify({'total': total, 'results': results[:10]})
+    total = len(results)
+    return jsonify({'total': total, 'results': results[:500]})
 
 
 @app.route('/api/apostas')
@@ -97,17 +120,26 @@ def list_apostas():
     rows = filtro_paridade.apply(rows)
     rows = filtro_limite.apply(rows)
 
-    total = len(rows)
     results = []
     for r in rows:
         dezenas = [r[f'n{i}'] for i in range(1, 16)]
+        qtd_pares = sum(1 for d in dezenas if d % 2 == 0)
+        qtd_impares = len(dezenas) - qtd_pares
+        lines = [0]*5
+        for d in dezenas:
+            lines[(d-1)//5] += 1
+        padrao = classify_pattern(lines)
         results.append({
             'concurso': r['concurso'],
             'data': r['data'],
             'dezenas': dezenas,
             'ganhador': r['ganhador'],
+            'qtdPares': qtd_pares,
+            'qtdImpares': qtd_impares,
+            'padraoLinha': padrao,
         })
     results.sort(key=lambda x: x['concurso'])
+    total = len(results)
     return jsonify({'total': total, 'results': results[:10]})
 
 @app.after_request
