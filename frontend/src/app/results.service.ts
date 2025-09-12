@@ -7,6 +7,9 @@ export interface LotofacilResult {
   data: string;
   dezenas: number[];
   ganhador: number;
+  qtdPares: number;
+  qtdImpares: number;
+  padraoLinha: string;
 }
 
 export interface ResultsResponse {
@@ -26,21 +29,21 @@ export class ResultsService {
   getLastResults(
     pares: number[] = [],
     impares: number[] = [],
-    concursoLimite?: number
+    concursoLimite?: number,
+    padraoLinha?: string
   ): Observable<ResultsResponse> {
     let params = new HttpParams();
     if (pares.length) {
-      pares.forEach(p => {
-        params = params.append('pares', p.toString());
-      });
+      params = params.set('pares', pares.join(','));
     }
     if (impares.length) {
-      impares.forEach(i => {
-        params = params.append('impares', i.toString());
-      });
+      params = params.set('impares', impares.join(','));
     }
     if (concursoLimite !== undefined) {
       params = params.set('concursoLimite', concursoLimite.toString());
+    }
+    if (padraoLinha) {
+      params = params.set('padraoLinha', padraoLinha);
     }
     return this.http.get<ResultsResponse>(this.API_URL, { params });
   }
@@ -52,14 +55,10 @@ export class ResultsService {
   ): Observable<ResultsResponse> {
     let params = new HttpParams();
     if (pares.length) {
-      pares.forEach(p => {
-        params = params.append('pares', p.toString());
-      });
+      params = params.set('pares', pares.join(','));
     }
     if (impares.length) {
-      impares.forEach(i => {
-        params = params.append('impares', i.toString());
-      });
+      params = params.set('impares', impares.join(','));
     }
     if (concursoLimite !== undefined) {
       params = params.set('concursoLimite', concursoLimite.toString());
