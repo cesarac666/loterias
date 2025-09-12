@@ -49,8 +49,7 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
       .getLastResults(pares, impares, limite, this.padraoLinha)
       .subscribe((r: ResultsResponse) => {
         this.chartResults = r.results;
-
-        this.results = r.results.slice(0, 100);
+        this.results = r.results.slice(0, 10);
 
         this.totalRegistros = r.total;
         this.renderChart();
@@ -62,7 +61,6 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
     if (!canvas) {
       return;
     }
-
     drawChart(canvas, this.chartResults);
   }
 

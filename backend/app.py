@@ -86,6 +86,17 @@ def classify_pattern(lines):
         return '1 linha completa'
     return 'outro'
 
+
+def classify_pattern(lines):
+    counts = {c: lines.count(c) for c in set(lines)}
+    if all(c == 3 for c in lines):
+        return '3 por linha'
+    if counts.get(3, 0) == 3 and counts.get(2, 0) == 1 and counts.get(4, 0) == 1:
+        return 'quase 3 por linha'
+    if 5 in lines:
+        return '1 linha completa'
+    return 'outro'
+
 @app.route('/api/results')
 def list_results():
     def _parse_int_list(values):
@@ -125,7 +136,6 @@ def list_results():
     rows = filtro_paridade.apply(rows)
     rows = filtro_limite.apply(rows)
 
-    total = len(rows)
     results = []
     for r in rows:
         dezenas = [r[f'n{i}'] for i in range(1, 16)]
@@ -148,6 +158,8 @@ def list_results():
             'padraoLinha': padrao,
         })
     results.sort(key=lambda x: x['concurso'], reverse=True)
+    total = len(results)
+
     return jsonify({'total': total, 'results': results[:500]})
 
 
@@ -188,7 +200,6 @@ def list_apostas():
     rows = filtro_paridade.apply(rows)
     rows = filtro_limite.apply(rows)
 
-    total = len(rows)
     results = []
     for r in rows:
         dezenas = [r[f'n{i}'] for i in range(1, 16)]
@@ -208,6 +219,7 @@ def list_apostas():
             'padraoLinha': padrao,
         })
     results.sort(key=lambda x: x['concurso'])
+    total = len(results)
     return jsonify({'total': total, 'results': results[:10]})
 
 @app.after_request

@@ -52,7 +52,6 @@ export function drawChart(canvas: HTMLCanvasElement, results: LotofacilResult[])
   });
   let lx = 10,
     ly = 10;
-
   patterns.forEach((p: string, i: number) => {
 
     ctx.fillStyle = colors[i];
