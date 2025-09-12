@@ -34,16 +34,19 @@ export class ResultsService {
   ): Observable<ResultsResponse> {
     const params: any = {};
     if (pares.length) {
-      params.pares = pares.join(',');
+      params = params.set('pares', pares.join(','));
     }
     if (impares.length) {
-      params.impares = impares.join(',');
+      params = params.set('impares', impares.join(','));
     }
     if (concursoLimite !== undefined) {
       params.concursoLimite = concursoLimite.toString();
     }
     if (padraoLinha) {
       params.padraoLinha = padraoLinha;
+    }
+    if (padraoLinha) {
+      params = params.set('padraoLinha', padraoLinha);
     }
 
     return this.http.get<ResultsResponse>(this.API_URL, { params });
@@ -56,10 +59,11 @@ export class ResultsService {
   ): Observable<ResultsResponse> {
     const params: any = {};
     if (pares.length) {
-      params.pares = pares.join(',');
+      params = params.set('pares', pares.join(','));
     }
     if (impares.length) {
-      params.impares = impares.join(',');
+      params = params.set('impares', impares.join(','));
+
     }
     if (concursoLimite !== undefined) {
       params.concursoLimite = concursoLimite.toString();
