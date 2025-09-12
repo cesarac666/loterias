@@ -7,6 +7,9 @@ export interface LotofacilResult {
   data: string;
   dezenas: number[];
   ganhador: number;
+  qtdPares: number;
+  qtdImpares: number;
+  padraoLinha: string;
 }
 
 export interface ResultsResponse {
@@ -26,7 +29,8 @@ export class ResultsService {
   getLastResults(
     pares: number[] = [],
     impares: number[] = [],
-    concursoLimite?: number
+    concursoLimite?: number,
+    padraoLinha?: string
   ): Observable<ResultsResponse> {
     let params = new HttpParams();
     if (pares.length) {
@@ -41,6 +45,9 @@ export class ResultsService {
     }
     if (concursoLimite !== undefined) {
       params = params.set('concursoLimite', concursoLimite.toString());
+    }
+    if (padraoLinha) {
+      params = params.set('padraoLinha', padraoLinha);
     }
     return this.http.get<ResultsResponse>(this.API_URL, { params });
   }
