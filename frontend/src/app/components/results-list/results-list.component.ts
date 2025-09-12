@@ -10,11 +10,13 @@ import { drawChart } from '../../draw-chart';
 })
 export class ResultsListComponent implements OnInit, AfterViewInit {
   results: LotofacilResult[] = [];
+  chartResults: LotofacilResult[] = [];
   useParImpar = false;
   pares = '';
   impares = '';
   concursoLimite = '';
   totalRegistros = 0;
+  @ViewChild('patternChart') patternChartCanvas?: ElementRef<HTMLCanvasElement>;
 
   @ViewChild('patternChart') patternChartCanvas?: ElementRef<HTMLCanvasElement>;
 
@@ -47,7 +49,8 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
     this.resultsService
       .getLastResults(pares, impares, limite)
       .subscribe((r: ResultsResponse) => {
-        this.results = r.results;
+        this.chartResults = r.results;
+        this.results = r.results.slice(0, 10);
         this.totalRegistros = r.total;
         this.renderChart();
       });
@@ -62,5 +65,12 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
       return;
     }
     drawChart(canvas, this.results);
+  }
+  renderChart(): void {
+    const canvas = this.patternChartCanvas?.nativeElement;
+    if (!canvas) {
+      return;
+    }
+    drawChart(canvas, this.chartResults);
   }
 }

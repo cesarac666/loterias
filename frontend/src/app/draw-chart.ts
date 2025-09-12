@@ -11,7 +11,6 @@ export function drawChart(canvas: HTMLCanvasElement, results: LotofacilResult[])
   const colors = ['#007bff', '#28a745', '#dc3545', '#ffc107'];
   const series: number[][] = patterns.map(() => []);
   const counts = new Array(patterns.length).fill(0);
-
   sorted.forEach((r: LotofacilResult) => {
 
     let idx = patterns.indexOf(r.padraoLinha);
@@ -40,7 +39,6 @@ export function drawChart(canvas: HTMLCanvasElement, results: LotofacilResult[])
       }
     });
     ctx.stroke();
-
     series[i].forEach((y: number, j: number) => {
 
       const x = j * stepX;
