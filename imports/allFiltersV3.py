@@ -73,6 +73,25 @@ class FiltroTresPorLinha(Filtro):
             return df
 
 
+class FiltroUmaLinhaCompleta(Filtro):
+    def __init__(self, ativo=True):
+        super().__init__(ativo)
+
+    def apply(self, df):
+        if self.ativo:
+            rows = []
+            for i, row in df.iterrows():
+                numbers = {row[f'B{j}'] for j in range(1, 16)}
+                lines = [0]*5
+                for num in numbers:
+                    lines[(num-1)//5] += 1
+                if 5 in lines:
+                    rows.append(row)
+            return pd.DataFrame(rows, columns=df.columns)
+        else:
+            return df
+
+
 class FiltroDezenasParesImpares(Filtro):
     def __init__(self, dezenas_pares=None, dezenas_impares=None, ativo=True):
         super().__init__(ativo)
