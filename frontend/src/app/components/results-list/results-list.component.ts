@@ -34,28 +34,25 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
     const paresVals = this.pares
       .replace(/;/g, ',')
       .split(',')
-      .map(v => parseInt(v.trim(), 10))
+      .map(v => parseInt(v.trim(), 100))
       .filter(v => !isNaN(v));
     const imparesVals = this.impares
       .replace(/;/g, ',')
       .split(',')
-      .map(v => parseInt(v.trim(), 10))
+      .map(v => parseInt(v.trim(), 100))
       .filter(v => !isNaN(v));
     const pares = this.useParImpar ? paresVals : [];
     const impares = this.useParImpar ? imparesVals : [];
-    const limiteVal = parseInt(this.concursoLimite, 10);
+    const limiteVal = parseInt(this.concursoLimite, 100);
     const limite = isNaN(limiteVal) ? undefined : limiteVal;
     this.resultsService
       .getLastResults(pares, impares, limite, this.padraoLinha)
       .subscribe((r: ResultsResponse) => {
         this.chartResults = r.results;
-        this.results = r.results.slice(0, 10);
+        this.results = r.results.slice(0, 100);
         this.totalRegistros = r.total;
         this.renderChart();
       });
-      
-    let lx = 10, ly = 10;
-    
   }
 
   renderChart(): void {
@@ -65,18 +62,5 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
     }
     drawChart(canvas, this.results);
   }
-  renderChart(): void {
-    const canvas = this.patternChartCanvas?.nativeElement;
-    if (!canvas) {
-      return;
-    }
-    drawChart(canvas, this.chartResults);
-  }
-  renderChart(): void {
-    const canvas = this.patternChartCanvas?.nativeElement;
-    if (!canvas) {
-      return;
-    }
-    drawChart(canvas, this.chartResults);
-  }
+
 }
