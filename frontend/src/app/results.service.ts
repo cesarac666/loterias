@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface LotofacilResult {
@@ -32,7 +32,7 @@ export class ResultsService {
     concursoLimite?: number,
     padraoLinha?: string
   ): Observable<ResultsResponse> {
-    let params = new HttpParams();
+    const params: any = {};
     if (pares.length) {
       params = params.set('pares', pares.join(','));
     }
@@ -40,11 +40,15 @@ export class ResultsService {
       params = params.set('impares', impares.join(','));
     }
     if (concursoLimite !== undefined) {
-      params = params.set('concursoLimite', concursoLimite.toString());
+      params.concursoLimite = concursoLimite.toString();
+    }
+    if (padraoLinha) {
+      params.padraoLinha = padraoLinha;
     }
     if (padraoLinha) {
       params = params.set('padraoLinha', padraoLinha);
     }
+
     return this.http.get<ResultsResponse>(this.API_URL, { params });
   }
 
@@ -53,15 +57,16 @@ export class ResultsService {
     impares: number[] = [],
     concursoLimite?: number
   ): Observable<ResultsResponse> {
-    let params = new HttpParams();
+    const params: any = {};
     if (pares.length) {
       params = params.set('pares', pares.join(','));
     }
     if (impares.length) {
       params = params.set('impares', impares.join(','));
+
     }
     if (concursoLimite !== undefined) {
-      params = params.set('concursoLimite', concursoLimite.toString());
+      params.concursoLimite = concursoLimite.toString();
     }
     return this.http.get<ResultsResponse>(this.BETS_URL, { params });
   }
