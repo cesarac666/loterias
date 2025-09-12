@@ -7,6 +7,9 @@ export interface LotofacilResult {
   data: string;
   dezenas: number[];
   ganhador: number;
+  qtdPares: number;
+  qtdImpares: number;
+  padraoLinha: string;
 }
 
 export interface ResultsResponse {
