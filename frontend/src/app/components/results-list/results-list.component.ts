@@ -53,21 +53,9 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
       });
       
     let lx = 10, ly = 10;
-    patterns.forEach((p, i) => {
-      ctx.fillStyle = colors[i];
-      ctx.fillRect(lx, ly - 8, 10, 10);
-      ctx.fillStyle = '#fff';
+    
+  }
 
-      ctx.fillText(p, lx + 15, ly);
-      ly += 15;
-    });
-  }
-  renderChart(): void {
-    if (!this.canvasRef) {
-      return;
-    }
-    drawChart(this.canvasRef.nativeElement, this.results);
-  }
   renderChart(): void {
     const canvas = this.patternChartCanvas?.nativeElement;
     if (!canvas) {
