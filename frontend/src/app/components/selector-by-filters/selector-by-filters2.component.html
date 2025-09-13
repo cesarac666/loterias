@@ -1,0 +1,83 @@
+<h1 class="title">Seleção por Filtros (Notebook)</h1>
+
+<div class="filters">
+  <div>
+    <label>Cutoff (concurso):</label>
+    <input type="number" [(ngModel)]="cutoff" placeholder="ex: 3000">
+  </div>
+  <div>
+    <label><input type="checkbox" [(ngModel)]="aplicarCRE"> CRE &lt; 2</label>
+    <label><input type="checkbox" [(ngModel)]="aplicarSalto"> Salto 3/4</label>
+    <label><input type="checkbox" [(ngModel)]="aplicarNAH"> NAH var</label>
+    <input type="number" [(ngModel)]="nahVar" min="0" style="width:80px" title="Variação NAH (±)">
+    <label><input type="checkbox" [(ngModel)]="aplicarABCD"> ABCD</label>
+    <label><input type="checkbox" [(ngModel)]="aplicarTresConsec"> 3 consecutivos na linha</label>
+  </div>
+  <div>
+    <label>Colunas min:</label>
+    <input type="text" [(ngModel)]="colMin" placeholder="2,1,1,1,1">
+    <label>Colunas max:</label>
+    <input type="text" [(ngModel)]="colMax" placeholder="5,5,4,5,5">
+  </div>
+  <div>
+    <label>ABCD min:</label>
+    <input type="text" [(ngModel)]="abcdMin" placeholder="0,2,4,0">
+    <label>ABCD max:</label>
+    <input type="text" [(ngModel)]="abcdMax" placeholder="3,8,10,5">
+  </div>
+  <div>
+    <label><input type="checkbox" [(ngModel)]="useParImpar"> Par/Ímpar</label>
+    <input type="text" [(ngModel)]="pares" placeholder="Pares (ex: 6,7,8)" [disabled]="!useParImpar">
+    <input type="text" [(ngModel)]="impares" placeholder="Ímpares (ex: 7,8,9)" [disabled]="!useParImpar">
+    <label>Limit:</label>
+    <input type="number" [(ngModel)]="limit" min="1" style="width:80px">
+  </div>
+  <div>
+    <button (click)="run()" [disabled]="loading">{{ loading ? 'Processando...' : 'Filtrar' }}</button>
+    <button (click)="check()" [disabled]="loading || !cutoff || items.length===0">Conferir próximo</button>
+  </div>
+</div>
+
+<p class="record-count">
+  Base (após par/ímpar): {{ totalBase }} | Filtradas: {{ totalFiltrado }}
+  <span *ngIf="nahBase">
+    | NAH base: {{ nahBase[0] }}/{{ nahBase[1] }}/{{ nahBase[2] }}
+    <span *ngIf="nahAllowed?.length" [title]="nahAllowedTooltip">[variações: {{ nahAllowed.length }}]</span>
+  </span>
+  <span *ngIf="nextConcurso">| Próximo ({{ nextConcurso }}): {{ nextDezenas.join(', ') }}</span>
+</p>
+
+<div *ngIf="nextInfo" style="margin:8px 0;">
+  <div>
+    <strong>Par/Ímpar:</strong> {{ nextInfo.qtdPares }}/{{ nextInfo.qtdImpares }}
+    | <strong>Maior Salto:</strong> {{ nextInfo.maiorSalto }}
+    | <strong>Maior Consecutivas:</strong> {{ nextInfo.maiorConsecutivas }}
+  </div>
+  <div>
+    <strong>Colunas (countC):</strong> {{ nextInfo.countC.join(', ') }}
+    | <strong>ABCD:</strong> {{ nextInfo.abcdCounts.join(', ') }}
+    <span *ngIf="nextInfo.nahCounts">| <strong>NAH (resultado):</strong> {{ nextInfo.nahCounts.join('/') }}</span>
+  </div>
+  <hr>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Dezenas</th>
+      <th>Pares</th>
+      <th>Ímpares</th>
+      <th>Acertos</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let it of items; let i = index">
+      <td>{{ i + 1 }}</td>
+      <td>{{ it.dezenas.join(', ') }}</td>
+      <td>{{ it.qtdPares }}</td>
+      <td>{{ it.qtdImpares }}</td>
+      <td>{{ it.acertos ?? '-' }}</td>
+    </tr>
+  </tbody>
+</table>

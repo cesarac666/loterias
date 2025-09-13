@@ -1,0 +1,7 @@
+.title { font-size: 20px; margin: 10px 0; }
+.filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+label { margin-right: 6px; }
+input { margin-right: 8px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border: 1px solid #444; padding: 4px 6px; }
+.record-count { margin: 10px 0; }

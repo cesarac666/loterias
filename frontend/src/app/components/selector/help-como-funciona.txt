@@ -1,0 +1,37 @@
+De onde vem a “frequência”
+
+Fonte: resultados históricos no SQLite (backend/lotofacil.db, tabela results).
+Código: backend/selector.py → compute_number_frequencies(...) soma quantas vezes cada dezena (1..25) apareceu em n1..n15 ao longo do histórico.
+Janela: em /api/selecionar, o parâmetro freqJanela limita às últimas N dezenas (walk-forward). Sem freqJanela, usa todo o histórico.
+Falta do DB: se o banco não existir/abrir, a frequência vira zero para todas (deixa o score mais neutro nessa parte).
+O que são os pesos
+
+wFreq: peso da frequência histórica.
+Como calcula: soma das frequências das 15 dezenas da aposta, normalizada por “15 × frequência máxima de uma dezena”.
+Efeito: maior wFreq favorece apostas com dezenas “quentes” na janela escolhida.
+wSeq3: peso das sequências de 3+ consecutivas.
+Como calcula: conta quantos “runs” de tamanho ≥ 3 existem na aposta (dezenas ordenadas).
+Efeito: valor negativo penaliza apostas com 3 ou mais consecutivas. Ex.: -0.7 tira pontos por cada run≥3.
+wJump: peso do “maior salto” entre dezenas consecutivas.
+Como calcula: maior diferença entre dezenas adjacentes ordenadas; aplica penalidade 1 se max_gap > 4, senão 0.
+Efeito: valor negativo penaliza apostas com “buracos” grandes (ex.: pular 5 números ou mais).
+wPar: peso do “desbalanceamento” de paridade.
+Como calcula: desvio relativo de pares em relação a 7.5 (ideal 7/8 ou 8/7), isto é abs(pares - 7.5) / 7.5.
+Efeito: valor negativo penaliza fugir do equilíbrio (7/8). Se quiser incentivar extremos, pode usar um valor positivo (não usual).
+Fórmula do score (resumo)
+
+score = wFreq * freq_norm + wSeq3 * runs3 + wJump * jump_pen + wPar * par_dev
+freq_norm: soma das frequências, normalizada
+runs3: número de runs de tamanho ≥ 3
+jump_pen: 1 se maior salto > 4, senão 0
+par_dev: desvio da paridade equilibrada
+Ordena pelo score (maior melhor), pega o top “pool” e faz a seleção por diversidade (Jaccard) para escolher K apostas menos parecidas entre si.
+Como ajustar na prática
+
+Favorecer dezenas “quentes”: aumente wFreq (ex.: 1.2–1.5).
+Reprimir sequências longas: torne wSeq3 mais negativo (ex.: -0.9).
+Reprimir buracos grandes: torne wJump mais negativo (ex.: -0.6).
+Manter paridade próxima de 7/8: wPar negativo moderado (ex.: -0.3), zere para ignorar paridade.
+Quer ignorar um critério: deixe o peso = 0.
+Se quiser, eu adiciono um pequeno tooltip na tela explicando cada peso e um preset com configurações “conservadoras” e “agressivas”.
+

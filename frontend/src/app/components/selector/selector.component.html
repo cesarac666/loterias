@@ -1,0 +1,67 @@
+<h1 class="title">Seleção Heurística de Apostas</h1>
+
+<div class="filters">
+  <div>
+    <label>K</label>
+    <input type="number" [(ngModel)]="k" min="1">
+    <label>Pool</label>
+    <input type="number" [(ngModel)]="pool" min="1">
+    <label>Freq. Janela</label>
+    <input type="number" [(ngModel)]="freqJanela" placeholder="(opcional)">
+  </div>
+  <div>
+    <label>wFreq</label>
+    <input type="number" [(ngModel)]="wFreq" step="0.1">
+    <label>wSeq3</label>
+    <input type="number" [(ngModel)]="wSeq3" step="0.1">
+    <label>wJump</label>
+    <input type="number" [(ngModel)]="wJump" step="0.1">
+    <label>wPar</label>
+    <input type="number" [(ngModel)]="wPar" step="0.1">
+  </div>
+  <div>
+    <label>Cutoff (concurso)</label>
+    <input type="number" [(ngModel)]="cutoff" placeholder="ex: 3000">
+  </div>
+  <div>
+    <label>
+      <input type="checkbox" [(ngModel)]="useParImpar"> Par/Ímpar
+    </label>
+    <input type="text" placeholder="Pares (ex: 6,7,8)" [(ngModel)]="pares" [disabled]="!useParImpar">
+    <input type="text" placeholder="Ímpares (ex: 7,8,9)" [(ngModel)]="impares" [disabled]="!useParImpar">
+  </div>
+  <div>
+    <button (click)="runSelection()" [disabled]="loading">{{ loading ? 'Processando...' : 'Selecionar' }}</button>
+    <button (click)="checkResults()" [disabled]="loading || !cutoff">Conferir resultado</button>
+  </div>
+</div>
+
+<p class="record-count">Total após filtro base: {{ totalFiltrado }} | Selecionadas: {{ selecionadas }}</p>
+<div *ngIf="nextConcurso">
+  <strong>Próximo resultado ({{ nextConcurso }}):</strong>
+  <span>{{ nextDezenas.join(', ') }}</span>
+  <br>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Dezenas</th>
+      <th>Score</th>
+      <th>Pares</th>
+      <th>Ímpares</th>
+      <th>Acertos</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let it of items; let i = index">
+      <td>{{ i + 1 }}</td>
+      <td>{{ it.dezenas.join(', ') }}</td>
+      <td>{{ it.score }}</td>
+      <td>{{ it.qtdPares }}</td>
+      <td>{{ it.qtdImpares }}</td>
+      <td>{{ it.acertos ?? '-' }}</td>
+    </tr>
+  </tbody>
+</table>

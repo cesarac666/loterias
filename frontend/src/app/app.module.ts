@@ -7,13 +7,17 @@ import { AppComponent } from './app.component';
 import { ResultsListComponent } from './components/results-list/results-list.component';
 import { TresPorLinhaListComponent } from './components/tres-por-linha-list/tres-por-linha-list.component';
 import { AppRoutingModule } from './app-routing.module';
+import { SelectorComponent } from './components/selector/selector.component';
+import { SelectorByFiltersComponent } from './components/selector-by-filters/selector-by-filters.component';
 
 
 @NgModule({
   declarations: [
     AppComponent,
     ResultsListComponent,
-    TresPorLinhaListComponent
+    TresPorLinhaListComponent,
+    SelectorComponent,
+    SelectorByFiltersComponent
   ],
   imports: [
     BrowserModule,

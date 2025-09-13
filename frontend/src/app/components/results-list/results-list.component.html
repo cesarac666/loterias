@@ -12,6 +12,9 @@
     <option value="3 por linha">3 por linha</option>
     <option value="quase 3 por linha">quase 3 por linha</option>
   </select>
+  <input type="number" placeholder="NAH N" [(ngModel)]="nahN">
+  <input type="number" placeholder="NAH A" [(ngModel)]="nahA">
+  <input type="number" placeholder="NAH H" [(ngModel)]="nahH">
   <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
   <button (click)="loadResults()">Aplicar</button>
 </div>
@@ -28,6 +31,7 @@
       <th>Pares</th>
       <th>Ímpares</th>
       <th>Padrão Linha</th>
+      <th>NAH</th>
     </tr>
   </thead>
   <tbody>
@@ -38,6 +42,7 @@
       <td>{{ r.qtdPares }}</td>
       <td>{{ r.qtdImpares }}</td>
       <td>{{ r.padraoLinha }}</td>
+      <td>{{ r.nahN ?? '-' }}/{{ r.nahA ?? '-' }}/{{ r.nahH ?? '-' }}</td>
     </tr>
   </tbody>
 </table>

@@ -16,6 +16,9 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
   impares = '';
   padraoLinha = '';
   concursoLimite = '';
+  nahN = '';
+  nahA = '';
+  nahH = '';
   totalRegistros = 0;
   @ViewChild('patternChart') patternChartCanvas?: ElementRef<HTMLCanvasElement>;
 
@@ -34,19 +37,23 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
     const paresVals = this.pares
       .replace(/;/g, ',')
       .split(',')
-      .map(v => parseInt(v.trim(), 100))
+      .map(v => parseInt(v.trim(), 10))
       .filter(v => !isNaN(v));
     const imparesVals = this.impares
       .replace(/;/g, ',')
       .split(',')
-      .map(v => parseInt(v.trim(), 100))
+      .map(v => parseInt(v.trim(), 10))
       .filter(v => !isNaN(v));
     const pares = this.useParImpar ? paresVals : [];
     const impares = this.useParImpar ? imparesVals : [];
-    const limiteVal = parseInt(this.concursoLimite, 100);
+    const limiteVal = parseInt(this.concursoLimite, 10);
     const limite = isNaN(limiteVal) ? undefined : limiteVal;
+    const nVal = parseInt(this.nahN, 10);
+    const aVal = parseInt(this.nahA, 10);
+    const hVal = parseInt(this.nahH, 10);
+    const nah = !isNaN(nVal) && !isNaN(aVal) && !isNaN(hVal) ? [nVal, aVal, hVal] as [number, number, number] : undefined;
     this.resultsService
-      .getLastResults(pares, impares, limite, this.padraoLinha)
+      .getLastResults(pares, impares, limite, this.padraoLinha, nah)
       .subscribe((r: ResultsResponse) => {
         this.chartResults = r.results;
         this.results = r.results.slice(0, 10);
