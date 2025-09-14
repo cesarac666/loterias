@@ -1,0 +1,18 @@
+import { Injectable } from '@angular/core';
+import { BehaviorSubject } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root',
+})
+export class FiltragemService {
+  private opcaoFiltragemSource = new BehaviorSubject<number>(1); // 1 é o valor padrão
+  opcaoFiltragemAtual = this.opcaoFiltragemSource.asObservable();
+
+  constructor() {}
+
+  mudarOpcaoFiltragem(opcao: number): void {
+    console.log('mudarOpcaoFiltragem...');
+    this.opcaoFiltragemSource.next(opcao);
+    console.log('opcao:' + String(opcao));
+  }
+}

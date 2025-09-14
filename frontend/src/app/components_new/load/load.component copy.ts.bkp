@@ -1,0 +1,88 @@
+import { Component } from '@angular/core';
+import { LoadService } from '../../services/load.service';
+import { CommonModule } from '@angular/common';
+import { LottoticketComponent } from '../lottoticket/lottoticket.component';
+
+@Component({
+  selector: 'app-load',
+  standalone: true,
+  imports: [CommonModule, LottoticketComponent],
+  templateUrl: './load.component.html',
+  styleUrl: './load.component.css',
+})
+export class LoadComponent {
+  // V1
+  /*loadData: any[] = [];
+
+  constructor(private loadDataService: LoadService) {}
+
+  ngOnInit(): void {
+    this.loadDataService.getLoadData().subscribe((data) => {
+      this.loadData = data;
+    });
+  }
+
+  getKeys(obj: any): string[] {
+    return obj ? Object.keys(obj) : [];
+  }*/
+
+  // V2
+  // ultimosSorteados: number[] = [];
+
+  constructor(private loadDataService: LoadService) {}
+
+  /* ngOnInit(): void {
+    this.loadDataService.getLoadData().subscribe((data) => {
+      console.log(data);
+      const ultimoSorteio = data[0];
+      console.log('ultimoSorteio:' + ultimoSorteio);
+      this.ultimosSorteados = this.extrairNumerosSorteados(ultimoSorteio);
+      // Pode chamar um método para atualizar ultimosSorteados baseado no último sorteio
+    });
+  }*/
+
+  // V3:
+  ultimosSorteados: number[][] = [];
+  concursos: number[] = [];
+
+  ngOnInit(): void {
+    var num: number = 2;
+
+    this.loadDataService.getLoadData(num).subscribe((data) => {
+      // Supondo que 'data' contém todos os sorteios e você quer os últimos cinco
+      this.ultimosSorteados = data
+        //.slice(0, 5)
+        .map((sorteio) => this.extrairNumerosSorteados(sorteio));
+    });
+  }
+
+  extrairNumerosSorteados(sorteio: any): number[] {
+    const numerosSorteados: number[] = [];
+
+    this.extrairNumeroConcurso(sorteio);
+
+    // Loop de B1 até B15
+    for (let i = 1; i <= 15; i++) {
+      const chave = `B${i}`; // Monta a chave (B1, B2, ..., B15)
+      const valor = sorteio[chave];
+
+      // Verifica se o valor é um número e está entre 1 e 25
+      if (typeof valor === 'number' && valor >= 1 && valor <= 25) {
+        numerosSorteados.push(valor);
+      }
+    }
+    console.log('numerosSorteados:' + numerosSorteados);
+    return numerosSorteados;
+  }
+
+  extrairNumeroConcurso(sorteio: any): number {
+    const cc = `CC`;
+    const numCC = sorteio[cc];
+
+    console.log('CC=' + numCC);
+
+    this.concursos.push(numCC);
+
+    return numCC;
+  }
+}

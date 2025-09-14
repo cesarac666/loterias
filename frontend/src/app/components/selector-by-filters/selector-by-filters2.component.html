@@ -61,6 +61,15 @@
   <hr>
 </div>
 
+<div *ngIf="filtersCheck" style="margin:8px 0;">
+  <strong>Filtros (próximo resultado):</strong>
+  <span *ngFor="let k of (filtersCheck | keyvalue)" style="margin-right:8px;">
+    {{ k.key }}: <span [style.color]="k.value ? 'lightgreen' : '#ff6666'">{{ k.value ? 'OK' : 'Falha' }}</span>
+  </span>
+  <hr>
+  
+</div>
+
 <table>
   <thead>
     <tr>

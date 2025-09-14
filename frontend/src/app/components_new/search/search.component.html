@@ -1,0 +1,15 @@
+<h1>Buscar Resultados por Filtro</h1>
+
+<div class="buscar-container">
+  <form (ngSubmit)="onBuscar()">
+    <select [(ngModel)]="opcaoSelecionada" name="opcoes" required>
+      <option value="1">Filtrar 3 por linha</option>
+      <option value="2">Filtrar quase 3 por linha fixo</option>
+      <option value="3">Filtrar quase 3 por linha qualquer</option>
+      <option value="4">Filtrar uma linha completa</option>
+    </select>
+    <button type="submit">Buscar</button>
+  </form>
+</div>
+
+  

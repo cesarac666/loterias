@@ -1,0 +1,12 @@
+<!-- tabs.component.html -->
+<div class="tabs-container">
+    <ul class="tabs">
+      <li class="tab" (click)="selectTab(1)" [class.active]="selectedTab === 1">Ultimo Resultado</li>
+      <li class="tab" (click)="selectTab(2)" [class.active]="selectedTab === 2">Buscar Resultados</li>
+      <li class="tab" (click)="selectTab(3)" [class.active]="selectedTab === 3">BETS</li>
+      <li class="tab" (click)="selectTab(4)" [class.active]="selectedTab === 4">Filtros Tpl</li>
+      <li class="tab" (click)="selectTab(5)" [class.active]="selectedTab === 5">Hello</li>
+    </ul>
+    <router-outlet></router-outlet>
+  </div>
+  

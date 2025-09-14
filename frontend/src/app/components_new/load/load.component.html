@@ -1,0 +1,15 @@
+<!--p>load works!</p-->
+<p></p>
+<button (click)="goBack()">Voltar</button>
+
+<div class="header">
+  <h1>{{ nomeFiltro }}</h1>
+  <h2>Total de Registros: {{ totalRegistros }}</h2>
+</div>
+<div class="taloes-container">
+  <app-lottoticket *ngFor="let sorteio of ultimosSorteados" [numerosSorteados]="sorteio"></app-lottoticket>
+</div> 
+
+<div class="tabular-container">
+  <app-lottotabular [numerosSorteados]="ultimosSorteados"></app-lottotabular>
+</div>

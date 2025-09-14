@@ -34,6 +34,7 @@ export class SelectorByFiltersComponent {
   nextConcurso?: number;
   nextDezenas: number[] = [];
   nextInfo?: { qtdPares: number; qtdImpares: number; maiorSalto: number; maiorConsecutivas: number; countC: number[]; abcdCounts: number[] } | null;
+  filtersCheck?: { [name: string]: boolean } | null;
   loading = false;
 
   constructor(private resultsService: ResultsService) {}
@@ -84,10 +85,30 @@ export class SelectorByFiltersComponent {
     if (isNaN(cutoffVal) || this.items.length === 0) return;
     const bets = this.items.map(it => it.dezenas);
     this.loading = true;
-    this.resultsService.checkSelection(cutoffVal, bets).subscribe(res => {
+    const options = {
+      aplicarPI: this.useParImpar,
+      aplicarCRE: this.aplicarCRE,
+      aplicarSalto: this.aplicarSalto,
+      aplicarNAH: this.aplicarNAH,
+      nahVar: this.nahVar,
+      aplicarABCD: this.aplicarABCD,
+      aplicarTresConsec: this.aplicarTresConsec,
+      aplicarBolaVez: false,
+      aplicarLosangoCentro: false,
+      aplicarOnzeQuinze: false,
+      aplicarMaxUmCinco: false,
+      colMin: this.colMin.split(',').map(v => parseInt(v.trim(), 10)),
+      colMax: this.colMax.split(',').map(v => parseInt(v.trim(), 10)),
+      abcdMin: this.abcdMin.split(',').map(v => parseInt(v.trim(), 10)),
+      abcdMax: this.abcdMax.split(',').map(v => parseInt(v.trim(), 10)),
+      pares: this.useParImpar ? this.pares.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v)) : [],
+      impares: this.useParImpar ? this.impares.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v)) : [],
+    };
+    this.resultsService.checkSelection(cutoffVal, bets, options).subscribe(res => {
       this.nextConcurso = res.nextConcurso;
       this.nextDezenas = res.nextDezenas || [];
       this.nextInfo = res.nextInfo || undefined;
+      this.filtersCheck = res.filtersCheck || undefined;
       const acertosMap = new Map<string, number>();
       res.results.forEach(r => acertosMap.set(r.dezenas.join(','), r.acertos));
       this.items = this.items.map(it => ({

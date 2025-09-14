@@ -16,7 +16,9 @@
   <input type="number" placeholder="NAH A" [(ngModel)]="nahA">
   <input type="number" placeholder="NAH H" [(ngModel)]="nahH">
   <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
+  <input type="number" placeholder="Exibir (qtde)" [(ngModel)]="displayCount" min="1" style="width:120px">
   <button (click)="loadResults()">Aplicar</button>
+  <button (click)="openPrintPreview()">Imprimir</button>
 </div>
 
 <p class="record-count">Total de registros: {{ totalRegistros }}</p>
@@ -32,6 +34,7 @@
       <th>Ímpares</th>
       <th>Padrão Linha</th>
       <th>NAH</th>
+      <th>Talão</th>
     </tr>
   </thead>
   <tbody>
@@ -43,10 +46,40 @@
       <td>{{ r.qtdImpares }}</td>
       <td>{{ r.padraoLinha }}</td>
       <td>{{ r.nahN ?? '-' }}/{{ r.nahA ?? '-' }}/{{ r.nahH ?? '-' }}</td>
+      <td><button (click)="showTicket(r.dezenas)">Talão</button></td>
     </tr>
   </tbody>
 </table>
 
+<div *ngIf="selectedTicketNumbers" style="margin:12px 0;">
+  <h3>Talão (selecionado)</h3>
+  <app-lottoticket [numerosSorteados]="selectedTicketNumbers"></app-lottoticket>
+  <div style="margin-top:8px;">
+    <button (click)="printTicket()">Imprimir</button>
+  </div>
+  <hr>
+</div>
+
 <h2>Tendência por padrão (últimos 500 resultados)</h2>
 
 <canvas #patternChart width="600" height="300"></canvas>
+
+<!-- Print Preview Overlay -->
+<div *ngIf="showPrintPreview" class="overlay">
+  <div class="overlay-content">
+    <div class="overlay-header">
+      <h3>Impressão de Talões ({{ results.length }} itens)</h3>
+      <div>
+        <button (click)="printAll()">Imprimir</button>
+        <button (click)="closePrintPreview()">Fechar</button>
+      </div>
+    </div>
+    <div class="tickets-grid">
+      <div class="ticket-item" *ngFor="let r of results">
+        <div class="ticket-title">Concurso {{ r.concurso }} — {{ r.data }}</div>
+        <app-lottoticket [numerosSorteados]="r.dezenas"></app-lottoticket>
+      </div>
+    </div>
+  </div>
+  <div class="overlay-backdrop" (click)="closePrintPreview()"></div>
+</div>

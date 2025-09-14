@@ -1,0 +1,63 @@
+<div class="container" *ngFor="let resultado of ultimos; let last = last">
+  <h2>Resultado do Sorteio</h2>
+  
+  <!-- Data do Sorteio e Número do Concurso -->
+  <div class="header">
+    <p><strong>Concurso:</strong> {{ resultado.CC }} - <strong>Data:</strong> {{ resultado.Data_Sorteio }}
+    <strong>Ganhadores:</strong> {{ resultado.Ganhador }}</p>
+  </div>
+
+  <!-- Números Sorteados -->
+  <div class="numeros-sorteados">
+    <h3>Números Sorteados:</h3>
+    <ul class="b-sorteados">
+      <li *ngFor="let num of [resultado.B1, resultado.B2, resultado.B3, resultado.B4, resultado.B5, resultado.B6, resultado.B7, resultado.B8, resultado.B9, resultado.B10, resultado.B11, resultado.B12, resultado.B13, resultado.B14, resultado.B15]">
+        {{ num }}
+      </li>
+    </ul>
+  </div>
+
+  <!-- Informações de Grupos -->
+  <div class="grupos">
+    <h3>Grupos de Números:</h3>
+    <span  *ngIf="last">
+      <p><strong>Grupo N:</strong> {{ resultado.GN.join(', ') }}</p>
+      <p><strong>Grupo A:</strong> {{ resultado.GA.join(', ') }}</p>
+      <p><strong>Grupo H:</strong> {{ resultado.GH.join(', ') }}</p>
+    </span>
+    <span  *ngIf="!last">
+      <p><strong>Contagem AH_to_H:</strong> {{ resultado.AH_to_H }}</p>
+      <p><strong>Contagem NS_to_N:</strong> {{ resultado.NS_to_N }}</p>
+      <p><strong>Contagem N_to_A:</strong> {{ resultado.N_to_A }}</p>
+    </span>
+  </div>
+
+  <!-- Combinatorics & Count Information -->
+  <div class="comb-info">
+
+    <h3>Combinatórias e Contagens:</h3>
+    <p><strong>Combin. NAH:</strong> {{ resultado.combNAH.join(', ') }}</p>
+    <span *ngIf="last">
+      <p><strong>Combin. PI:</strong> {{ resultado.combPI.join(', ') }}</p>
+      <p><strong>Contagem L:</strong> {{ resultado.countL.join(', ') }}</p>
+      <p><strong>Contagem C:</strong> {{ resultado.countC.join(', ') }}</p>
+      <!--<p><strong>Contagem P:</strong> {{ resultado.countP }}</p>
+      <p><strong>Contagem N:</strong> {{ resultado.countN }}</p>
+      <p><strong>Contagem A:</strong> {{ resultado.countA }}</p> --> 
+    </span>
+  </div>
+
+  <div class="taloes-container">
+    <app-lottoticket *ngFor="let sorteio of ultimos" [numerosSorteados]="sorteio"></app-lottoticket>
+  </div> 
+
+  <!-- Posições (P1 - P15) 
+  <div class="posicoes">
+    <h3>Posições:</h3>
+    <ul class="posicoes-list">
+      <li *ngFor="let pos of [resultado.P1, resultado.P2, resultado.P3, resultado.P4, resultado.P5, resultado.P6, resultado.P7, resultado.P8, resultado.P9, resultado.P10, resultado.P11, resultado.P12, resultado.P13, resultado.P14, resultado.P15]">
+        {{ pos }}
+      </li>
+    </ul>
+  </div> -->
+</div>

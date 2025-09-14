@@ -85,6 +85,42 @@ def has_line_three_consecutives_3L(dezenas: Sequence[int]) -> bool:
     return False
 
 
+# --- Additional filters (7–11) ---
+
+def uma_bola_de_cada_vez(
+    dezenas: Sequence[int],
+    entram: Optional[Sequence[int]] = None,
+    saem: Optional[Sequence[int]] = None,
+) -> bool:
+    """Keep if contains all 'entram' and none of 'saem'. If lists are empty/None, pass-through."""
+    s = set(dezenas)
+    if entram:
+        if not set(entram).issubset(s):
+            return False
+    if saem:
+        if set(saem) & s:
+            return False
+    return True
+
+
+def in_losango_ou_centro(dezenas: Sequence[int]) -> bool:
+    """Keep if contains center (13) or any from the immediate diamond ring around: {8,12,14,18}."""
+    s = set(dezenas)
+    center = {13}
+    ring1 = {8, 12, 14, 18}
+    return bool((center | ring1) & s)
+
+
+def count_in_range(dezenas: Sequence[int], low: int, high: int) -> int:
+    return sum(1 for d in dezenas if low <= d <= high)
+
+
+def maximo_um_cinco(dezenas: Sequence[int]) -> bool:
+    """At most one number from the 5th column: {5,10,15,20,25}."""
+    col5 = {5, 10, 15, 20, 25}
+    return sum(1 for d in dezenas if d in col5) <= 1
+
+
 def filter_by_vector(list_values: Sequence[int], min_vec: Sequence[int], max_vec: Sequence[int]) -> bool:
     return all(min_vec[i] <= list_values[i] <= max_vec[i] for i in range(len(min_vec)))
 

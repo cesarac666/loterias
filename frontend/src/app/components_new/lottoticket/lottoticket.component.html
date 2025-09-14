@@ -1,0 +1,10 @@
+<div class="numeros">
+  <button class="numero" *ngFor="let num of generateArray(25); let i = index"
+          [class.selecionado]="numerosSelecionados[i]"
+          [class.nao-selecionado]="!numerosSelecionados[i]"
+          (click)="toggleNumero(i+1)">
+    {{ num + 1 }}
+  </button>
+</div>
+
+<!-- teste -->

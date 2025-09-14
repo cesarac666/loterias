@@ -19,8 +19,11 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
   nahN = '';
   nahA = '';
   nahH = '';
+  displayCount = 10;
   totalRegistros = 0;
   @ViewChild('patternChart') patternChartCanvas?: ElementRef<HTMLCanvasElement>;
+  selectedTicketNumbers: number[] | null = null;
+  showPrintPreview = false;
 
 
   constructor(private resultsService: ResultsService) {}
@@ -56,7 +59,8 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
       .getLastResults(pares, impares, limite, this.padraoLinha, nah)
       .subscribe((r: ResultsResponse) => {
         this.chartResults = r.results;
-        this.results = r.results.slice(0, 10);
+        const cnt = Math.max(1, Number(this.displayCount) || 10);
+        this.results = r.results.slice(0, cnt);
 
         this.totalRegistros = r.total;
         this.renderChart();
@@ -69,6 +73,26 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
       return;
     }
     drawChart(canvas, this.chartResults);
+  }
+
+  showTicket(dezenas: number[]): void {
+    this.selectedTicketNumbers = dezenas;
+  }
+
+  printTicket(): void {
+    window.print();
+  }
+
+  openPrintPreview(): void {
+    this.showPrintPreview = true;
+  }
+
+  closePrintPreview(): void {
+    this.showPrintPreview = false;
+  }
+
+  printAll(): void {
+    window.print();
   }
 
 }

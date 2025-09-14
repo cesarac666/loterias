@@ -19,12 +19,27 @@
   border-collapse: collapse;
  }
 
- th, td {
+th, td {
   border: 1px solid #555;
   padding: 4px;
   text-align: center;
- }
+}
 
- th {
+th {
   background-color: #222;
- }
+}
+
+/* Overlay for print preview */
+.overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.overlay-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+.overlay-content { position: relative; background: #111; color: #fff; padding: 12px; max-height: 90vh; max-width: 95vw; overflow: auto; z-index: 1001; border: 1px solid #444; border-radius: 4px; }
+.overlay-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.tickets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.ticket-item { background: #1a1a1a; padding: 8px; border: 1px solid #333; border-radius: 4px; }
+.ticket-title { font-size: 12px; margin-bottom: 6px; color: #bbb; }
+
+@media print {
+  .filters, .record-count, table, canvas, .overlay-backdrop, .overlay-header button { display: none !important; }
+  .overlay, .overlay-content { position: static; inset: auto; background: transparent; color: #000; }
+  .ticket-item { break-inside: avoid; page-break-inside: avoid; }
+}

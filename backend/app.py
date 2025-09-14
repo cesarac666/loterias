@@ -299,7 +299,8 @@ def selecionar_por_filtros():
     from pipeline_filters import (
         dezenas_from_row, count_par_impar, max_jump, count_columns, count_cre,
         has_run_len_at_least, filter_by_vector, compute_freq_groups, count_groups,
-        generate_nah_variations, compute_mapping_sets, has_line_three_consecutives_3L
+        generate_nah_variations, compute_mapping_sets, has_line_three_consecutives_3L,
+        uma_bola_de_cada_vez, in_losango_ou_centro, count_in_range, maximo_um_cinco
     )
 
     def _parse_int_list(values):
@@ -339,6 +340,12 @@ def selecionar_por_filtros():
     nah_var = request.args.get('nahVar', default=2, type=int)
     aplicar_abcd = _bool('aplicarABCD', True)
     aplicar_tres = _bool('aplicarTresConsec', True)
+    # new filters 7–11
+    aplicar_bola_vez = _bool('aplicarBolaVez', False)
+    aplicar_losango = _bool('aplicarLosangoCentro', False)
+    aplicar_onze_quinze = _bool('aplicarOnzeQuinze', False)
+    min_onze_quinze = request.args.get('minOnzeQuinze', default=2, type=int)
+    aplicar_max_um_cinco = _bool('aplicarMaxUmCinco', False)
     aplicar_pi = _bool('aplicarPI', True)
     limit = request.args.get('limit', default=200, type=int)
 
@@ -346,6 +353,24 @@ def selecionar_por_filtros():
     col_max = _parse_vec(request.args.get('colMax', ''), 5) or [5, 5, 4, 5, 5]
     abcd_min = _parse_vec(request.args.get('abcdMin', ''), 4) or [0, 2, 4, 0]
     abcd_max = _parse_vec(request.args.get('abcdMax', ''), 4) or [3, 8, 10, 5]
+    # bola-vez lists
+    entram_list = _parse_vec(request.args.get('bolaVezEntram', ''), 0) or []
+    saem_list = _parse_vec(request.args.get('bolaVezSaem', ''), 0) or []
+    # fallback manual parse for arbitrary length
+    if not entram_list:
+        ent = request.args.get('bolaVezEntram', '')
+        if ent:
+            try:
+                entram_list = [int(x.strip()) for x in ent.split(',') if x.strip()]
+            except Exception:
+                entram_list = []
+    if not saem_list:
+        sai = request.args.get('bolaVezSaem', '')
+        if sai:
+            try:
+                saem_list = [int(x.strip()) for x in sai.split(',') if x.strip()]
+            except Exception:
+                saem_list = []
 
     pares_param = request.args.get('pares', '')
     impares_param = request.args.get('impares', '')
@@ -440,6 +465,22 @@ def selecionar_por_filtros():
         if aplicar_tres:
             if not has_line_three_consecutives_3L(dz):
                 continue
+        # step 7) uma bola de cada vez (list-based include/exclude)
+        if aplicar_bola_vez:
+            if not uma_bola_de_cada_vez(dz, entram_list, saem_list):
+                continue
+        # step 8) losango ou centro
+        if aplicar_losango:
+            if not in_losango_ou_centro(dz):
+                continue
+        # step 9) onze-quinze (at least min)
+        if aplicar_onze_quinze:
+            if count_in_range(dz, 11, 15) < min_onze_quinze:
+                continue
+        # step 11) maximo um cinco (5th column values)
+        if aplicar_max_um_cinco:
+            if not maximo_um_cinco(dz):
+                continue
         filtradas.append({'dezenas': dz})
 
     return jsonify({
@@ -457,6 +498,13 @@ def selecionar_por_filtros():
         'abcdMin': abcd_min,
         'abcdMax': abcd_max,
         'aplicarTresConsec': aplicar_tres,
+        'aplicarBolaVez': aplicar_bola_vez,
+        'bolaVezEntram': entram_list,
+        'bolaVezSaem': saem_list,
+        'aplicarLosangoCentro': aplicar_losango,
+        'aplicarOnzeQuinze': aplicar_onze_quinze,
+        'minOnzeQuinze': min_onze_quinze,
+        'aplicarMaxUmCinco': aplicar_max_um_cinco,
         'aplicarPI': aplicar_pi,
         'results': [
             {
@@ -594,6 +642,7 @@ def conferir_selecao():
     data = request.get_json(silent=True) or {}
     cutoff = data.get('cutoff')
     bets = data.get('bets') or []
+    opts = data.get('options') or {}
     if not isinstance(cutoff, int):
         return jsonify({'error': 'cutoff inválido'}), 400
     # Buscar próximo concurso (cutoff + 1)
@@ -621,7 +670,9 @@ def conferir_selecao():
         from selector import compute_number_frequencies
         from pipeline_filters import (
             count_par_impar, max_jump, longest_consecutive_run,
-            count_columns, compute_freq_groups, count_groups, dezenas_from_row
+            count_columns, compute_freq_groups, count_groups, dezenas_from_row,
+            has_line_three_consecutives_3L, filter_by_vector,
+            uma_bola_de_cada_vez, in_losango_ou_centro, count_in_range, maximo_um_cinco
         )
         freqs = compute_number_frequencies(hist_rows)
         groups = compute_freq_groups(freqs)
@@ -648,8 +699,86 @@ def conferir_selecao():
             'abcdCounts': abcd_counts,
             'nahCounts': nah_counts,
         }
+        # filter pass/fail diagnostics (against provided options)
+        def _b(name, default=False):
+            v = opts.get(name)
+            return bool(v) if v is not None else default
+        aplicarPI = _b('aplicarPI', True)
+        aplicarCRE = _b('aplicarCRE', True)
+        aplicarSalto = _b('aplicarSalto', True)
+        aplicarNAH = _b('aplicarNAH', True)
+        aplicarABCD = _b('aplicarABCD', True)
+        aplicarTres = _b('aplicarTresConsec', True)
+        aplicarBolaVez = _b('aplicarBolaVez', False)
+        aplicarLosango = _b('aplicarLosangoCentro', False)
+        aplicarOnzeQuinze = _b('aplicarOnzeQuinze', False)
+        aplicarMaxUmCinco = _b('aplicarMaxUmCinco', False)
+        colMin = opts.get('colMin') or [2,1,1,1,1]
+        colMax = opts.get('colMax') or [5,5,4,5,5]
+        abcdMin = opts.get('abcdMin') or [0,2,4,0]
+        abcdMax = opts.get('abcdMax') or [3,8,10,5]
+        nahVar = int(opts.get('nahVar') or 2)
+        paresAllow = set(opts.get('pares') or [])
+        imparesAllow = set(opts.get('impares') or [])
+        bolaEntram = opts.get('bolaVezEntram') or []
+        bolaSaem = opts.get('bolaVezSaem') or []
+
+        # build NAH allowed set similar to selection
+        allowed_nah = set()
+        if aplicarNAH and len(hist_rows) >= 3:
+            last = dezenas_from_row(hist_rows[-1])
+            prev1 = dezenas_from_row(hist_rows[-2])
+            prev2 = dezenas_from_row(hist_rows[-3])
+            N_base = len(set(last) - set(prev1))
+            A_base = len((set(last) & set(prev1)) - set(prev2))
+            H_base = len(set(last) & set(prev1) & set(prev2))
+            from pipeline_filters import generate_nah_variations
+            allowed_nah = set(generate_nah_variations((N_base, A_base, H_base), var_range=nahVar))
+
+        # compute basic attributes for next result
+        next_cols = count_columns(next_dezenas)
+        abcd_ok = filter_by_vector(abcd_counts, abcdMin, abcdMax)
+        cols_ok = filter_by_vector(next_cols, colMin, colMax)
+        tres_ok = has_line_three_consecutives_3L(next_dezenas) if aplicarTres else True
+        pi_ok = True
+        if aplicarPI and (paresAllow or imparesAllow):
+            p = sum(1 for d in next_dezenas if d % 2 == 0)
+            i = 15 - p
+            if paresAllow and p not in paresAllow:
+                pi_ok = False
+            if imparesAllow and i not in imparesAllow:
+                pi_ok = False
+        nah_ok = True
+        if aplicarNAH and nah_counts is not None:
+            nah_ok = tuple(nah_counts) in allowed_nah
+        bola_ok = uma_bola_de_cada_vez(next_dezenas, bolaEntram, bolaSaem) if aplicarBolaVez else True
+        los_ok = in_losango_ou_centro(next_dezenas) if aplicarLosango else True
+        onz_ok = (count_in_range(next_dezenas, 11, 15) >= int(opts.get('minOnzeQuinze') or 2)) if aplicarOnzeQuinze else True
+        max5_ok = maximo_um_cinco(next_dezenas) if aplicarMaxUmCinco else True
+        cre_ok = True  # CRE is defined on generated bets grid-like structure; for next result we can compute pattern equality between adjacent rows
+        try:
+            from pipeline_filters import count_cre
+            cre_ok = (count_cre(next_dezenas) < 2) if aplicarCRE else True
+        except Exception:
+            cre_ok = True
+        salto_ok = (max_jump(next_dezenas) in (3,4)) if aplicarSalto else True
+
+        filters_check = {
+            'ParImpar': pi_ok,
+            'CRE': cre_ok,
+            'Salto': salto_ok,
+            'Colunas': cols_ok,
+            'NAH': nah_ok,
+            'ABCD': abcd_ok,
+            'TresConsecLinha': tres_ok,
+            'BolaUmaVez': bola_ok,
+            'LosangoOuCentro': los_ok,
+            'OnzeQuinze': onz_ok,
+            'MaximoUmCinco': max5_ok,
+        }
     except Exception:
         next_info = None
+        filters_check = None
     out = []
     for dz in bets:
         try:
@@ -658,7 +787,7 @@ def conferir_selecao():
             s_bet = set()
         acertos = len(s_bet & s_next)
         out.append({'dezenas': sorted(list(s_bet)), 'acertos': acertos})
-    return jsonify({'nextConcurso': cutoff + 1, 'nextDezenas': next_dezenas, 'nextInfo': next_info, 'results': out})
+    return jsonify({'nextConcurso': cutoff + 1, 'nextDezenas': next_dezenas, 'nextInfo': next_info, 'filtersCheck': filters_check, 'results': out})
 
 @app.after_request
 def add_cors_headers(response):

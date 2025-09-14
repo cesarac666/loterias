@@ -7,6 +7,7 @@ import { AppComponent } from './app.component';
 import { ResultsListComponent } from './components/results-list/results-list.component';
 import { TresPorLinhaListComponent } from './components/tres-por-linha-list/tres-por-linha-list.component';
 import { AppRoutingModule } from './app-routing.module';
+import { LottoticketComponent } from './components_new/lottoticket/lottoticket.component';
 import { SelectorComponent } from './components/selector/selector.component';
 import { SelectorByFiltersComponent } from './components/selector-by-filters/selector-by-filters.component';
 
@@ -23,7 +24,8 @@ import { SelectorByFiltersComponent } from './components/selector-by-filters/sel
     BrowserModule,
     HttpClientModule,
     AppRoutingModule,
-    FormsModule
+    FormsModule,
+    LottoticketComponent
   ],
   providers: [],
   bootstrap: [AppComponent]

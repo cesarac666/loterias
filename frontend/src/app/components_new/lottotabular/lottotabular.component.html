@@ -1,0 +1,17 @@
+<div class="tabular-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Sorteio</th>
+          <th colspan="15">Dezenas</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let sorteio of numerosSorteados; let i = index">
+          <td>{{ i + 1 }}</td>
+          <td *ngFor="let numero of sorteio">{{ numero }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  

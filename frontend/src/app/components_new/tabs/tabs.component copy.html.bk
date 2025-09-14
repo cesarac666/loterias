@@ -1,0 +1,22 @@
+<!-- Em seu arquivo de componente de abas, por exemplo: tab.component.html -->
+<div class="tabs-container">
+    <ul class="tabs">
+      <li class="tab" (click)="selectTab(1)" [class.active]="selectedTab === 1">Tab 1</li>
+      <li class="tab" (click)="selectTab(2)" [class.active]="selectedTab === 2">Tab 2</li>
+      <li class="tab" (click)="selectTab(3)" [class.active]="selectedTab === 3">Tab 3</li>
+      <li class="tab" (click)="selectTab(4)" [class.active]="selectedTab === 4">Tab 4</li>
+    </ul>
+    <div class="tab-content" *ngIf="selectedTab === 1">
+      <app-search></app-search>
+    </div>
+    <div class="tab-content" *ngIf="selectedTab === 2">
+      <app-hello></app-hello>
+    </div>
+    <div class="tab-content" *ngIf="selectedTab === 3">
+      <!-- Conteúdo da Tab 3 -->
+    </div>
+    <div class="tab-content" *ngIf="selectedTab === 4">
+      <!-- Conteúdo da Tab 4 -->
+    </div>
+  </div>
+  

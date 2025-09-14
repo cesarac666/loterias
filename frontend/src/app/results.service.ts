@@ -55,6 +55,7 @@ export interface CheckResponse {
     abcdCounts: number[];
     nahCounts?: number[] | null;
   } | null;
+  filtersCheck?: { [name: string]: boolean } | null;
   results: CheckResponseItem[];
   message?: string;
 }
@@ -144,10 +145,11 @@ export class ResultsService {
     return this.http.get<SelectionResponse>(this.SELECT_URL, { params });
   }
 
-  checkSelection(cutoff: number, bets: number[][]): Observable<CheckResponse> {
+  checkSelection(cutoff: number, bets: number[][], options?: any): Observable<CheckResponse> {
     return this.http.post<CheckResponse>(`${this.SELECT_URL}/conferir`, {
       cutoff,
-      bets
+      bets,
+      options
     });
   }
 

@@ -1,0 +1,51 @@
+/* load.component.css */
+.taloes-container {
+    display: flex;
+    justify-content: space-around; /* Ou 'flex-start' para alinhar à esquerda */
+    flex-wrap: wrap; /* Para quebrar a linha se não couberem na tela */
+    gap: 20px; /* Espaçamento entre os talões */
+  }
+  
+
+  @media print {
+    .numero {
+      background-color: #007bff !important; /* Azul */
+      color: #fff !important; /* Branco */
+      -webkit-print-color-adjust: exact; /* Para Chrome, Safari */
+      print-color-adjust: exact; /* Padrão, para outros navegadores */
+    }
+  
+    body {
+      color: #000 !important; /* Cor do texto geral para garantir boa legibilidade */
+    }
+  }
+  
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  font-size: 24px;
+  color: #333;
+}
+
+.header h2 {
+  font-size: 20px;
+  color: #666;
+}
+
+button {
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  background-color: #007bff;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
