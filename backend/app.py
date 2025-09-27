@@ -1,10 +1,12 @@
-from flask import Flask, jsonify, request
+﻿from flask import Flask, jsonify, request
 import sqlite3
+import json 
 import csv
 from pathlib import Path
 
 app = Flask(__name__)
-DB_PATH = Path(__file__).with_name('lotofacil.db')
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR.parent / 'database' / 'lotofacil.db'
 
 def get_connection():
     """Create a read-only connection to the SQLite database.
@@ -108,6 +110,215 @@ def classify_pattern(lines):
         return '1 linha completa'
     return 'outro'
 
+@app.route('/api/dia-da-sorte')
+def list_dia_da_sorte():
+    conn = get_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    try:
+        cur = conn.cursor()
+        total = cur.execute(
+            'SELECT COUNT(*) FROM dia_da_sorte_results'
+        ).fetchone()[0]
+        limit = request.args.get('limit', type=int)
+        query = '''
+            SELECT
+                concurso,
+                data_sorteio,
+                bola1,
+                bola2,
+                bola3,
+                bola4,
+                bola5,
+                bola6,
+                bola7,
+                mes_da_sorte,
+                ganhadores_7_acertos,
+                pares,
+                impares,
+                nah_n,
+                nah_a,
+                nah_h,
+                max_consec,
+                maior_salto,
+                isoladas,
+                qdls,
+                digit_stats
+            FROM dia_da_sorte_results
+            ORDER BY concurso DESC
+        '''
+        params = ()
+        if limit and limit > 0:
+            query += ' LIMIT ?'
+            params = (limit,)
+        rows = cur.execute(query, params).fetchall()
+
+        def _safe_json_loads(value, fallback):
+            if not value:
+                return fallback
+            try:
+                return json.loads(value)
+            except (TypeError, json.JSONDecodeError):
+                return fallback
+
+        results = [
+            {
+                'concurso': row['concurso'],
+                'dataSorteio': row['data_sorteio'],
+                'bolas': [
+                    row['bola1'],
+                    row['bola2'],
+                    row['bola3'],
+                    row['bola4'],
+                    row['bola5'],
+                    row['bola6'],
+                    row['bola7'],
+                ],
+                'mesDaSorte': row['mes_da_sorte'],
+                'ganhadores7Acertos': row['ganhadores_7_acertos'],
+                'pares': row['pares'],
+                'impares': row['impares'],
+                'nahN': row['nah_n'],
+                'nahA': row['nah_a'],
+                'nahH': row['nah_h'],
+                'maxConsec': row['max_consec'],
+                'maiorSalto': row['maior_salto'],
+                'isolatedCount': row['isoladas'],
+                'qdls': _safe_json_loads(row['qdls'], []),
+                'digitStats': _safe_json_loads(row['digit_stats'], {'units': {}, 'tens': {}}),
+            }
+            for row in rows
+        ]
+        return jsonify({'total': total, 'results': results})
+    finally:
+        conn.close()
+
+@app.route('/api/dia-da-sorte/apostas/filtrar', methods=['POST'])
+def filter_dia_da_sorte_bets():
+    conn = get_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    data = request.get_json(silent=True) or {}
+    try:
+        cur = conn.cursor()
+
+        def _add_range(min_val, max_val, column, conditions, params):
+            if min_val is not None:
+                conditions.append(f"{column} >= ?")
+                params.append(int(min_val))
+            if max_val is not None:
+                conditions.append(f"{column} <= ?")
+                params.append(int(max_val))
+
+        conditions: list[str] = []
+        params: list[int] = []
+
+        range_mappings = [
+            ('paresMin', 'paresMax', 'pares'),
+            ('imparesMin', 'imparesMax', 'impares'),
+            ('maxConsecMin', 'maxConsecMax', 'max_consec'),
+            ('maiorSaltoMin', 'maiorSaltoMax', 'maior_salto'),
+            ('isolatedMin', 'isolatedMax', 'isoladas'),
+            ('nahNMin', 'nahNMax', 'nah_n'),
+            ('nahAMin', 'nahAMax', 'nah_a'),
+            ('nahHMin', 'nahHMax', 'nah_h'),
+        ]
+        for min_key, max_key, column in range_mappings:
+            _add_range(data.get(min_key), data.get(max_key), column, conditions, params)
+
+        qdls_min = data.get('qdlsMin') or []
+        qdls_max = data.get('qdlsMax') or []
+        for idx in range(5):
+            col = f'qdls_s{idx + 1}'
+            _add_range(
+                qdls_min[idx] if idx < len(qdls_min) else None,
+                qdls_max[idx] if idx < len(qdls_max) else None,
+                col,
+                conditions,
+                params,
+            )
+
+        units_min = data.get('unitsMin') or []
+        units_max = data.get('unitsMax') or []
+        for idx in range(10):
+            col = f'unit_{idx}'
+            _add_range(
+                units_min[idx] if idx < len(units_min) else None,
+                units_max[idx] if idx < len(units_max) else None,
+                col,
+                conditions,
+                params,
+            )
+
+        tens_min = data.get('tensMin') or []
+        tens_max = data.get('tensMax') or []
+        for idx in range(4):
+            col = f'ten_{idx}'
+            _add_range(
+                tens_min[idx] if idx < len(tens_min) else None,
+                tens_max[idx] if idx < len(tens_max) else None,
+                col,
+                conditions,
+                params,
+            )
+
+        where_clause = ''
+        if conditions:
+            where_clause = 'WHERE ' + ' AND '.join(conditions)
+
+        limit = int(data.get('limit') or 100)
+        limit = max(1, min(limit, 1000))
+        offset = int(data.get('offset') or 0)
+        offset = max(0, offset)
+
+        params_tuple = tuple(params)
+        total = cur.execute(
+            f'SELECT COUNT(*) FROM dia_da_sorte_bets {where_clause}',
+            params_tuple,
+        ).fetchone()[0]
+
+        rows = cur.execute(
+            f'''
+                SELECT
+                    d1, d2, d3, d4, d5, d6, d7,
+                    pares, impares, max_consec, maior_salto, isoladas,
+                    nah_n, nah_a, nah_h,
+                    qdls_s1, qdls_s2, qdls_s3, qdls_s4, qdls_s5,
+                    unit_0, unit_1, unit_2, unit_3, unit_4, unit_5, unit_6, unit_7, unit_8, unit_9,
+                    ten_0, ten_1, ten_2, ten_3
+                FROM dia_da_sorte_bets
+                {where_clause}
+                ORDER BY id
+                LIMIT ? OFFSET ?
+            ''',
+            params_tuple + (limit, offset),
+        ).fetchall()
+
+        def _build_digit_map(prefix: str, count: int, row):
+            return {str(i): row[f'{prefix}{i}'] for i in range(count)}
+
+        results = [
+            {
+                'dezenas': [row['d1'], row['d2'], row['d3'], row['d4'], row['d5'], row['d6'], row['d7']],
+                'pares': row['pares'],
+                'impares': row['impares'],
+                'maxConsec': row['max_consec'],
+                'maiorSalto': row['maior_salto'],
+                'isolatedCount': row['isoladas'],
+                'nahN': row['nah_n'],
+                'nahA': row['nah_a'],
+                'nahH': row['nah_h'],
+                'qdls': [row['qdls_s1'], row['qdls_s2'], row['qdls_s3'], row['qdls_s4'], row['qdls_s5']],
+                'digitStats': {
+                    'units': _build_digit_map('unit_', 10, row),
+                    'tens': _build_digit_map('ten_', 4, row),
+                },
+            }
+            for row in rows
+        ]
+        return jsonify({'total': total, 'limit': limit, 'offset': offset, 'results': results})
+    finally:
+        conn.close()
 @app.route('/api/results')
 def list_results():
     def _parse_int_list(values):
@@ -798,3 +1009,10 @@ def add_cors_headers(response):
 
 if __name__ == '__main__':
     app.run()
+
+
+
+
+
+
+

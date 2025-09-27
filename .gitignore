@@ -1,3 +1,4 @@
+database/*.db
 backend/lotofacil.db
 backend/__pycache__/
 backend/__pycache__/filters.cpython-310.pyc

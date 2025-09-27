@@ -1,0 +1,189 @@
+﻿<div class="dia-da-sorte">
+  <h2>Dia da Sorte</h2>
+
+  <form class="controls" (ngSubmit)="loadResults()">
+    <label for="limit">Quantidade de concursos:</label>
+    <input
+      id="limit"
+      name="limit"
+      type="number"
+      min="1"
+      [(ngModel)]="limit"
+    />
+    <button type="submit" [disabled]="loading">Atualizar</button>
+    <button type="button" (click)="openPrintPreview()" [disabled]="loading || !results.length">
+      Imprimir
+    </button>
+  </form>
+
+  <p *ngIf="loading" class="status">Carregando resultados...</p>
+  <p *ngIf="error" class="status error">{{ error }}</p>
+  <p *ngIf="!loading && !error" class="status">
+    Total de concursos registrados: {{ total }}
+  </p>
+
+  <table *ngIf="!loading && !error && results.length" class="results-table">
+    <thead>
+      <tr>
+        <th>Concurso</th>
+        <th>Data</th>
+        <th>Dezenas</th>
+        <th>Mês da Sorte</th>
+        <th>Pares</th>
+        <th>Ímpares</th>
+        <th>MaxConsec</th>
+        <th>MaiorSalto</th>
+        <th>Isoladas</th>
+        <th>QDLS</th>
+        <th>UD</th>
+        <th>NAH</th>
+        <th>Ganhadores 7 acertos</th>
+        <th>Talão</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngIf="summary" class="summary-row">
+        <td>Resumo</td>
+        <td>–</td>
+        <td>–</td>
+        <td>–</td>
+        <td>{{ formatSummaryValue(summary?.pares) }}</td>
+        <td>{{ formatSummaryValue(summary?.impares) }}</td>
+        <td>{{ formatSummaryValue(summary?.maxConsec) }}</td>
+        <td>{{ formatSummaryValue(summary?.maiorSalto) }}</td>
+        <td>{{ formatSummaryValue(summary?.isolatedCount) }}</td>
+        <td>{{ formatQdlsSummary(summary?.qdls) }}</td>
+        <td>{{ formatDigitStatsSummary(summary?.digitStats) }}</td>
+        <td>{{ formatNahSummary(summary?.nah) }}</td>
+        <td>{{ formatSummaryValue(summary?.ganhadores7) }}</td>
+        <td>–</td>
+      </tr>
+      <tr *ngFor="let item of results; trackBy: trackByConcurso">
+        <td>{{ item.concurso }}</td>
+        <td>{{ item.dataSorteio }}</td>
+        <td>{{ item.bolas.join(', ') }}</td>
+        <td>{{ getMonthLabel(item.mesDaSorte) }} ({{ item.mesDaSorte }})</td>
+        <td>{{ item.pares }}</td>
+        <td>{{ item.impares }}</td>
+        <td>{{ item.maxConsec }}</td>
+        <td>{{ item.maiorSalto }}</td>
+        <td>{{ item.isolatedCount }}</td>
+        <td>{{ formatQdls(item) }}</td>
+        <td>{{ formatDigitStats(item) }}</td>
+        <td>{{ formatNah(item) }}</td>
+        <td>{{ item.ganhadores7Acertos }}</td>
+        <td>
+          <button type="button" (click)="showTicket(item)">Talão</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div *ngIf="summary" class="digit-frequency">
+    <h3>Frequência por algarismo ({{ results.length }} concursos)</h3>
+    <div class="digit-frequency-grid">
+      <div class="digit-frequency-card">
+        <h4>Unidades (média base: {{ formatAverage(summary.digitFrequency.overallUnitsAverage) }})</h4>
+        <table class="digit-frequency-table">
+          <thead>
+            <tr>
+              <th>Unidade</th>
+              <th>Total</th>
+              <th>Média</th>
+              <th>Perfil</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let unidade of unitDigits">
+              <td>{{ unidade }}</td>
+              <td>{{ summary.digitFrequency.units[unidade]?.total ?? 0 }}</td>
+              <td>{{ formatAverage(summary.digitFrequency.units[unidade]?.average ?? 0) }}</td>
+              <td>
+                <span
+                  class="profile-pill"
+                  [ngClass]="profileClass(summary.digitFrequency.units[unidade]?.profile || 'neutra')"
+                >
+                  {{ profileLabel(summary.digitFrequency.units[unidade]?.profile || 'neutra') }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="digit-frequency-card">
+        <h4>Dezenas (média base: {{ formatAverage(summary.digitFrequency.overallTensAverage) }})</h4>
+        <table class="digit-frequency-table">
+          <thead>
+            <tr>
+              <th>Dezena</th>
+              <th>Total</th>
+              <th>Média</th>
+              <th>Perfil</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let dezena of tenDigits">
+              <td>{{ dezena }}</td>
+              <td>{{ summary.digitFrequency.tens[dezena]?.total ?? 0 }}</td>
+              <td>{{ formatAverage(summary.digitFrequency.tens[dezena]?.average ?? 0) }}</td>
+              <td>
+                <span
+                  class="profile-pill"
+                  [ngClass]="profileClass(summary.digitFrequency.tens[dezena]?.profile || 'neutra')"
+                >
+                  {{ profileLabel(summary.digitFrequency.tens[dezena]?.profile || 'neutra') }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p *ngIf="!loading && !error && !results.length" class="status">
+    Nenhum resultado encontrado.
+  </p>
+
+  <div *ngIf="selectedTicketNumbers" class="selected-ticket">
+    <h3>Talão selecionado</h3>
+    <app-dia-da-sorte-ticket [numerosSorteados]="selectedTicketNumbers"></app-dia-da-sorte-ticket>
+    <div class="selected-actions">
+      <button type="button" (click)="printTicket()">Imprimir</button>
+      <button type="button" (click)="clearSelectedTicket()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="showPrintPreview" class="overlay">
+  <div class="overlay-content">
+    <div class="overlay-header">
+      <h3>Impressão de Talões ({{ results.length }} itens)</h3>
+      <div>
+        <button type="button" (click)="printAll()">Imprimir</button>
+        <button type="button" (click)="closePrintPreview()">Fechar</button>
+      </div>
+    </div>
+    <div class="tickets-grid">
+      <div class="ticket-item" *ngFor="let item of results; trackBy: trackByConcurso">
+        <div class="ticket-title">
+          Concurso {{ item.concurso }} – {{ item.dataSorteio }}
+        </div>
+        <app-dia-da-sorte-ticket [numerosSorteados]="item.bolas"></app-dia-da-sorte-ticket>
+        <div class="ticket-meta">
+          <span>Mês: {{ getMonthLabel(item.mesDaSorte) }} ({{ item.mesDaSorte }})</span>
+          <span>Pares: {{ item.pares }}</span>
+          <span>Ímpares: {{ item.impares }}</span>
+          <span>MaxConsec: {{ item.maxConsec }}</span>
+          <span>MaiorSalto: {{ item.maiorSalto }}</span>
+          <span>Isoladas: {{ item.isolatedCount }}</span>
+          <span>QDLS: {{ formatQdls(item) }}</span>
+          <span>UD: {{ formatDigitStats(item) }}</span>
+          <span>NAH: {{ formatNah(item) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="overlay-backdrop" (click)="closePrintPreview()"></div>
+</div>
+

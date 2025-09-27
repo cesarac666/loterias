@@ -1,0 +1,51 @@
+﻿.ticket {
+  border: 1px solid #ccc;
+  padding: 8px;
+  border-radius: 4px;
+  background: #fff;
+  color: #000;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.ticket-header {
+  text-align: center;
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.numbers-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.num {
+  border: 1px solid #888;
+  border-radius: 3px;
+  padding: 4px 0;
+  font-size: 12px;
+  text-align: center;
+  background: #f7f7f7;
+}
+
+.num.selected {
+  background: #1e88e5;
+  color: #fff;
+  border-color: #0d47a1;
+  font-weight: 600;
+}
+
+@media print {
+  .ticket {
+    color: #000;
+  }
+  .num {
+    border-color: #444;
+  }
+  .num.selected {
+    background: #000;
+    border-color: #000;
+    color: #fff;
+  }
+}

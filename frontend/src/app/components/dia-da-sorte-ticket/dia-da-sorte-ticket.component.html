@@ -1,0 +1,12 @@
+﻿<div class="ticket">
+  <div class="ticket-header">Dia de Sorte</div>
+  <div class="numbers-grid">
+    <div
+      class="num"
+      *ngFor="let numero of numeros"
+      [class.selected]="isSelecionado(numero)"
+    >
+      {{ numero < 10 ? '0' + numero : numero }}
+    </div>
+  </div>
+</div>

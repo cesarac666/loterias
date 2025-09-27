@@ -1,0 +1,100 @@
+﻿.bets-page {
+  padding: 16px;
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+  background: #0b0b0b;
+  border: 1px solid #d6770a;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.filter-field input {
+  padding: 4px 6px;
+}
+
+.filter-group h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.actions button {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.status {
+  margin: 8px 0;
+}
+
+.status.error {
+  color: #c0392b;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+.results-table th,
+.results-table td {
+  border: 1px solid #d3d8ee;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.results-table th {
+  background: #eef1ff;
+}
+
+.profile-pill {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile-quente {
+  background: #ffe3e0;
+  color: #c0392b;
+}
+
+.profile-fria {
+  background: #e0f0ff;
+  color: #1f618d;
+}
+
+.profile-neutra {
+  background: #f0f0f0;
+  color: #555;
+}

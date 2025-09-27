@@ -1,0 +1,132 @@
+﻿<div class="bets-page">
+  <h2>Gerar apostas por filtros</h2>
+
+  <form class="filters" (ngSubmit)="applyFilters()">
+    <div class="filter-row">
+      <div class="filter-field">
+        <label>Pares</label>
+        <input type="number" [(ngModel)]="paresMin" name="paresMin" placeholder="min">
+        <input type="number" [(ngModel)]="paresMax" name="paresMax" placeholder="max">
+      </div>
+      <div class="filter-field">
+        <label>Ímpares</label>
+        <input type="number" [(ngModel)]="imparesMin" name="imparesMin" placeholder="min">
+        <input type="number" [(ngModel)]="imparesMax" name="imparesMax" placeholder="max">
+      </div>
+      <div class="filter-field">
+        <label>MaxConsec</label>
+        <input type="number" [(ngModel)]="maxConsecMin" name="maxConsecMin" placeholder="min">
+        <input type="number" [(ngModel)]="maxConsecMax" name="maxConsecMax" placeholder="max">
+      </div>
+      <div class="filter-field">
+        <label>Maior Salto</label>
+        <input type="number" [(ngModel)]="maiorSaltoMin" name="maiorSaltoMin" placeholder="min">
+        <input type="number" [(ngModel)]="maiorSaltoMax" name="maiorSaltoMax" placeholder="max">
+      </div>
+      <div class="filter-field">
+        <label>Isoladas</label>
+        <input type="number" [(ngModel)]="isolatedMin" name="isolatedMin" placeholder="min">
+        <input type="number" [(ngModel)]="isolatedMax" name="isolatedMax" placeholder="max">
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <div class="filter-field">
+        <label>NAH N</label>
+        <input type="number" [(ngModel)]="nahNMin" name="nahNMin" placeholder="min">
+        <input type="number" [(ngModel)]="nahNMax" name="nahNMax" placeholder="max">
+      </div>
+      <div class="filter-field">
+        <label>NAH A</label>
+        <input type="number" [(ngModel)]="nahAMin" name="nahAMin" placeholder="min">
+        <input type="number" [(ngModel)]="nahAMax" name="nahAMax" placeholder="max">
+      </div>
+      <div class="filter-field">
+        <label>NAH H</label>
+        <input type="number" [(ngModel)]="nahHMin" name="nahHMin" placeholder="min">
+        <input type="number" [(ngModel)]="nahHMax" name="nahHMax" placeholder="max">
+      </div>
+      <div class="filter-field">
+        <label>Limite</label>
+        <input type="number" [(ngModel)]="limit" name="limit" min="1" max="1000">
+      </div>
+      <div class="filter-field">
+        <label>Offset</label>
+        <input type="number" [(ngModel)]="offset" name="offset" min="0">
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <h3>QDLS (por semana)</h3>
+      <div class="filter-grid">
+        <div class="filter-field" *ngFor="let item of qdlsFilters; index as i">
+          <label>S{{ i + 1 }}</label>
+          <input type="number" [(ngModel)]="item.min" [name]="'qdlsMin' + i" placeholder="min">
+          <input type="number" [(ngModel)]="item.max" [name]="'qdlsMax' + i" placeholder="max">
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <h3>Unidades</h3>
+      <div class="filter-grid">
+        <div class="filter-field" *ngFor="let item of unitFilters; index as i">
+          <label>U{{ i }}</label>
+          <input type="number" [(ngModel)]="item.min" [name]="'unitMin' + i" placeholder="min">
+          <input type="number" [(ngModel)]="item.max" [name]="'unitMax' + i" placeholder="max">
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <h3>Dezenas</h3>
+      <div class="filter-grid">
+        <div class="filter-field" *ngFor="let item of tenFilters; index as i">
+          <label>D{{ i }}</label>
+          <input type="number" [(ngModel)]="item.min" [name]="'tenMin' + i" placeholder="min">
+          <input type="number" [(ngModel)]="item.max" [name]="'tenMax' + i" placeholder="max">
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit">Aplicar filtros</button>
+      <button type="button" (click)="resetFilters()">Limpar</button>
+    </div>
+  </form>
+
+  <p *ngIf="loading" class="status">Carregando apostas...</p>
+  <p *ngIf="error" class="status error">{{ error }}</p>
+  <p *ngIf="!loading && !error">Total encontrado: {{ total }}</p>
+
+  <table *ngIf="!loading && !error && results.length" class="results-table">
+    <thead>
+      <tr>
+        <th>Dezenas</th>
+        <th>Pares</th>
+        <th>Ímpares</th>
+        <th>Isoladas</th>
+        <th>MaxConsec</th>
+        <th>MaiorSalto</th>
+        <th>NAH</th>
+        <th>QDLS</th>
+        <th>UD</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let item of results">
+        <td>{{ item.dezenas.join(', ') }}</td>
+        <td>{{ item.pares }}</td>
+        <td>{{ item.impares }}</td>
+        <td>{{ item.isolatedCount }}</td>
+        <td>{{ item.maxConsec }}</td>
+        <td>{{ item.maiorSalto }}</td>
+        <td>{{ formatNah(item) }}</td>
+        <td>{{ formatQdls(item) }}</td>
+        <td>{{ formatDigitStats(item) }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p *ngIf="!loading && !error && !results.length" class="status">Nenhuma aposta encontrada.</p>
+</div>
