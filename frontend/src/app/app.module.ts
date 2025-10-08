@@ -13,6 +13,7 @@ import { SelectorByFiltersComponent } from './components/selector-by-filters/sel
 import { DiaDaSorteListComponent } from './components/dia-da-sorte-list/dia-da-sorte-list.component';
 import { DiaDaSorteTicketComponent } from './components/dia-da-sorte-ticket/dia-da-sorte-ticket.component';
 import { DiaDaSorteBetsComponent } from './components/dia-da-sorte-bets/dia-da-sorte-bets.component';
+import { DiaDaSorteSavedBetsComponent } from './components/dia-da-sorte-saved-bets/dia-da-sorte-saved-bets.component';
 
 @NgModule({
   declarations: [
@@ -23,7 +24,8 @@ import { DiaDaSorteBetsComponent } from './components/dia-da-sorte-bets/dia-da-s
     SelectorByFiltersComponent,
     DiaDaSorteListComponent,
     DiaDaSorteTicketComponent,
-    DiaDaSorteBetsComponent
+    DiaDaSorteBetsComponent,
+    DiaDaSorteSavedBetsComponent
   ],
   imports: [
     BrowserModule,

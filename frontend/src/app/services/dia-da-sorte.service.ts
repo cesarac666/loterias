@@ -51,6 +51,42 @@ export interface DiaDaSorteBetsResponse {
   results: DiaDaSorteBet[];
 }
 
+export interface DiaDaSorteUpdateResponse {
+  inserted: number[];
+  count: number;
+  message: string;
+}
+
+export interface DiaDaSorteLastResult {
+  concurso: number;
+  dataSorteio: string;
+}
+
+export interface DiaDaSorteSaveResponse {
+  nextConcurso: number | null;
+  totalMatches: number;
+  inserted: number;
+  alreadySaved: number;
+  message?: string;
+}
+
+export interface DiaDaSorteSavedBet {
+  id: number;
+  concurso: number;
+  dezenas: number[];
+  acertos: number | null;
+  acertosRegistrados: number;
+  resultadoDisponivel: boolean;
+  resultado: number[] | null;
+  dataSorteio: string | null;
+  createdAt: string;
+}
+
+export interface DiaDaSorteSavedResponse {
+  total: number;
+  results: DiaDaSorteSavedBet[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class DiaDaSorteService {
   private readonly API_BASE = 'http://localhost:5000/api/dia-da-sorte';
@@ -67,5 +103,25 @@ export class DiaDaSorteService {
 
   filterBets(filters: any): Observable<DiaDaSorteBetsResponse> {
     return this.http.post<DiaDaSorteBetsResponse>(`${this.API_BASE}/apostas/filtrar`, filters ?? {});
+  }
+
+  updateResultsAndStats(): Observable<DiaDaSorteUpdateResponse> {
+    return this.http.post<DiaDaSorteUpdateResponse>(`${this.API_BASE}/atualizar`, {});
+  }
+
+  getLastResult(): Observable<DiaDaSorteLastResult> {
+    return this.http.get<DiaDaSorteLastResult>(`${this.API_BASE}/ultimo`);
+  }
+
+  saveFilteredBets(filters: any): Observable<DiaDaSorteSaveResponse> {
+    return this.http.post<DiaDaSorteSaveResponse>(`${this.API_BASE}/apostas/salvar`, filters ?? {});
+  }
+
+  getSavedBets(concurso?: number): Observable<DiaDaSorteSavedResponse> {
+    let params = new HttpParams();
+    if (concurso !== undefined && concurso !== null) {
+      params = params.set('concurso', String(concurso));
+    }
+    return this.http.get<DiaDaSorteSavedResponse>(`${this.API_BASE}/apostas/salvas`, { params });
   }
 }

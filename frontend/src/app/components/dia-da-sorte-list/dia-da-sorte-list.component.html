@@ -10,12 +10,21 @@
       min="1"
       [(ngModel)]="limit"
     />
-    <button type="submit" [disabled]="loading">Atualizar</button>
-    <button type="button" (click)="openPrintPreview()" [disabled]="loading || !results.length">
+    <button type="submit" [disabled]="loading || updating">Atualizar</button>
+    <button
+      type="button"
+      (click)="refreshResultsAndStats()"
+      [disabled]="loading || updating"
+    >
+      Atualizar resultados e estatisticas
+    </button>
+    <button type="button" (click)="openPrintPreview()" [disabled]="loading || updating || !results.length">
       Imprimir
     </button>
   </form>
 
+  <p *ngIf="updateStatus && !updating" class="status">{{ updateStatus }}</p>
+  <p *ngIf="updateError" class="status error">{{ updateError }}</p>
   <p *ngIf="loading" class="status">Carregando resultados...</p>
   <p *ngIf="error" class="status error">{{ error }}</p>
   <p *ngIf="!loading && !error" class="status">
@@ -185,5 +194,15 @@
     </div>
   </div>
   <div class="overlay-backdrop" (click)="closePrintPreview()"></div>
+</div>
+
+<div *ngIf="updating" class="update-overlay" aria-live="assertive">
+  <div class="update-dialog">
+    <span class="update-spinner" aria-hidden="true"></span>
+    <div class="update-message">
+      <p>Atualizando resultados e estatisticas...</p>
+      <small>Essa operacao pode levar alguns instantes.</small>
+    </div>
+  </div>
 </div>
 

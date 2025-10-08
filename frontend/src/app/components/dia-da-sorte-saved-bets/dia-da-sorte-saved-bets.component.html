@@ -1,0 +1,66 @@
+<div class="saved-bets-page">
+  <h2>Conferencia de apostas salvadas</h2>
+
+  <form class="controls" (ngSubmit)="loadSavedBets()">
+    <label for="concursoFiltro">Filtrar por concurso:</label>
+    <input
+      id="concursoFiltro"
+      name="concursoFiltro"
+      type="number"
+      min="1"
+      [(ngModel)]="concursoFiltro"
+      placeholder="Numero do concurso"
+    />
+    <button type="submit" [disabled]="loading">Carregar</button>
+    <button type="button" (click)="clearFilter()" [disabled]="loading">Limpar filtro</button>
+  </form>
+
+  <p *ngIf="loading" class="status">Carregando apostas salvas...</p>
+  <p *ngIf="error" class="status error">{{ error }}</p>
+  <p *ngIf="status && !loading" class="status">{{ status }}</p>
+
+  <div *ngIf="!loading && !error && total" class="summary">
+    <span>Total de apostas armazenadas: {{ total }}</span>
+    <span *ngIf="aguardandoResultado">Aguardando resultado: {{ aguardandoResultado }}</span>
+    <span *ngFor="let item of resumo">
+      {{ item.label }} acertos: {{ item.value }}
+    </span>
+    <button
+      type="button"
+      class="sort-button"
+      (click)="toggleSortByHits()"
+      [disabled]="loading || !bets.length"
+    >
+      Ordenar por acertos {{ ordenarPorAcertosDesc ? '(desc)' : '(asc)' }}
+    </button>
+  </div>
+
+  <table *ngIf="!loading && !error && bets.length" class="bets-table">
+    <thead>
+      <tr>
+        <th>Concurso</th>
+        <th>Data sorteio</th>
+        <th>Aposta</th>
+        <th>Resultado</th>
+        <th>Acertos</th>
+        <th>Registrado</th>
+        <th>Salvo em</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let bet of bets; trackBy: trackById">
+        <td>{{ bet.concurso }}</td>
+        <td>{{ bet.dataSorteio || '-' }}</td>
+        <td>{{ bet.dezenas.join(', ') }}</td>
+        <td>{{ formatResultado(bet) }}</td>
+        <td>{{ formatAcertos(bet) }}</td>
+        <td>{{ bet.acertosRegistrados }}</td>
+        <td>{{ bet.createdAt }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p *ngIf="!loading && !error && !bets.length" class="status">
+    Nenhuma aposta encontrada.
+  </p>
+</div>

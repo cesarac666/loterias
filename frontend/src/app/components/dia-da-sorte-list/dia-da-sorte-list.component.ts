@@ -63,7 +63,10 @@ export class DiaDaSorteListComponent implements OnInit {
   total = 0;
   limit = 20;
   loading = false;
+  updating = false;
   error?: string;
+  updateStatus?: string;
+  updateError?: string;
   selectedTicketNumbers: number[] | null = null;
   showPrintPreview = false;
   summary: SummaryStats | null = null;
@@ -110,6 +113,33 @@ export class DiaDaSorteListComponent implements OnInit {
         this.summary = null;
         this.error = 'Falha ao carregar resultados do Dia da Sorte.';
         this.loading = false;
+      }
+    });
+  }
+
+  refreshResultsAndStats(): void {
+    if (this.updating || this.loading) {
+      return;
+    }
+    this.updating = true;
+    this.updateStatus = undefined;
+    this.updateError = undefined;
+    this.diaDaSorteService.updateResultsAndStats().subscribe({
+      next: (response) => {
+        const fallback =
+          response.count > 0
+            ? `Atualizados ${response.count} concurso(s).`
+            : 'Nenhum novo concurso encontrado.';
+        this.updateStatus = response.message || fallback;
+        this.loadResults();
+      },
+      error: (err) => {
+        console.error('Falha ao atualizar resultados do Dia da Sorte', err);
+        this.updateError = 'Falha ao atualizar resultados e estatisticas.';
+        this.updating = false;
+      },
+      complete: () => {
+        this.updating = false;
       }
     });
   }
@@ -285,7 +315,7 @@ export class DiaDaSorteListComponent implements OnInit {
     const ganhadoresTracker = this.createTracker();
     const nahNTracker = this.createTracker();
     const nahATracker = this.createTracker();
-    const nahHTracker = this.createTracker();
+     const nahHTracker = this.createTracker();
 
     const qdlsLength = results[0].qdls?.length ?? 0;
     const qdlsTrackers = Array.from({ length: qdlsLength }, () => this.createTracker());

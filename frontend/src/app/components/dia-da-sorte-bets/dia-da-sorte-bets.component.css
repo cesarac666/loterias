@@ -51,8 +51,18 @@
   cursor: pointer;
 }
 
+.actions button[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .status {
   margin: 8px 0;
+}
+
+.status.info {
+  color: #2c7be5;
+  font-weight: 600;
 }
 
 .status.error {

@@ -1,12 +1,19 @@
-﻿from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request
 import sqlite3
 import json 
 import csv
+import sys
 from pathlib import Path
 
-app = Flask(__name__)
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR.parent / 'database' / 'lotofacil.db'
+ROOT_DIR = BASE_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.append(str(ROOT_DIR))
+
+from imports.update_diadesorte_results import update_results as update_dia_da_sorte_results
+
+app = Flask(__name__)
+DB_PATH = ROOT_DIR / 'database' / 'lotofacil.db'
 
 def get_connection():
     """Create a read-only connection to the SQLite database.
@@ -21,6 +28,109 @@ def get_connection():
     except sqlite3.OperationalError as exc:
         app.logger.error('Failed to connect to database %s: %s', DB_PATH, exc)
         return None
+
+
+def get_write_connection():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except sqlite3.OperationalError as exc:
+        app.logger.error('Failed to open database %s: %s', DB_PATH, exc)
+        return None
+
+
+def _ensure_saved_bets_table(cur: sqlite3.Cursor) -> None:
+    cur.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS dia_da_sorte_saved_bets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            concurso INTEGER NOT NULL,
+            d1 INTEGER NOT NULL,
+            d2 INTEGER NOT NULL,
+            d3 INTEGER NOT NULL,
+            d4 INTEGER NOT NULL,
+            d5 INTEGER NOT NULL,
+            d6 INTEGER NOT NULL,
+            d7 INTEGER NOT NULL,
+            acertos INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        '''
+    )
+    cur.execute(
+        '''
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_bets_unique
+        ON dia_da_sorte_saved_bets(concurso, d1, d2, d3, d4, d5, d6, d7)
+        '''
+    )
+    cur.execute(
+        '''
+        CREATE INDEX IF NOT EXISTS idx_saved_bets_concurso
+        ON dia_da_sorte_saved_bets(concurso)
+        '''
+    )
+
+
+def _build_dia_da_sorte_bets_filters(data: dict) -> tuple[str, tuple[int, ...], int, int]:
+    conditions: list[str] = []
+    params: list[int] = []
+
+    def _add_range(min_val, max_val, column):
+        if min_val is not None:
+            conditions.append(f"{column} >= ?")
+            params.append(int(min_val))
+        if max_val is not None:
+            conditions.append(f"{column} <= ?")
+            params.append(int(max_val))
+
+    range_mappings = [
+        ('paresMin', 'paresMax', 'pares'),
+        ('imparesMin', 'imparesMax', 'impares'),
+        ('maxConsecMin', 'maxConsecMax', 'max_consec'),
+        ('maiorSaltoMin', 'maiorSaltoMax', 'maior_salto'),
+        ('isolatedMin', 'isolatedMax', 'isoladas'),
+        ('nahNMin', 'nahNMax', 'nah_n'),
+        ('nahAMin', 'nahAMax', 'nah_a'),
+        ('nahHMin', 'nahHMax', 'nah_h'),
+    ]
+    for min_key, max_key, column in range_mappings:
+        _add_range(data.get(min_key), data.get(max_key), column)
+
+    qdls_min = data.get('qdlsMin') or []
+    qdls_max = data.get('qdlsMax') or []
+    for idx in range(5):
+        column = f'qdls_s{idx + 1}'
+        min_val = qdls_min[idx] if idx < len(qdls_min) else None
+        max_val = qdls_max[idx] if idx < len(qdls_max) else None
+        _add_range(min_val, max_val, column)
+
+    units_min = data.get('unitsMin') or []
+    units_max = data.get('unitsMax') or []
+    for idx in range(10):
+        column = f'unit_{idx}'
+        min_val = units_min[idx] if idx < len(units_min) else None
+        max_val = units_max[idx] if idx < len(units_max) else None
+        _add_range(min_val, max_val, column)
+
+    tens_min = data.get('tensMin') or []
+    tens_max = data.get('tensMax') or []
+    for idx in range(4):
+        column = f'ten_{idx}'
+        min_val = tens_min[idx] if idx < len(tens_min) else None
+        max_val = tens_max[idx] if idx < len(tens_max) else None
+        _add_range(min_val, max_val, column)
+
+    where_clause = ''
+    if conditions:
+        where_clause = 'WHERE ' + ' AND '.join(conditions)
+
+    limit = int(data.get('limit') or 100)
+    limit = max(1, min(limit, 1000))
+    offset = int(data.get('offset') or 0)
+    offset = max(0, offset)
+
+    return where_clause, tuple(params), limit, offset
 
 
 def classify_pattern(lines):
@@ -193,6 +303,29 @@ def list_dia_da_sorte():
     finally:
         conn.close()
 
+
+@app.route('/api/dia-da-sorte/ultimo')
+def get_last_dia_da_sorte_result():
+    conn = get_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    try:
+        cur = conn.cursor()
+        row = cur.execute(
+            '''
+                SELECT concurso, data_sorteio
+                FROM dia_da_sorte_results
+                ORDER BY concurso DESC
+                LIMIT 1
+            '''
+        ).fetchone()
+        if not row:
+            return jsonify({'message': 'Nenhum resultado encontrado.'}), 404
+        return jsonify({'concurso': row['concurso'], 'dataSorteio': row['data_sorteio']})
+    finally:
+        conn.close()
+
+
 @app.route('/api/dia-da-sorte/apostas/filtrar', methods=['POST'])
 def filter_dia_da_sorte_bets():
     conn = get_connection()
@@ -201,77 +334,8 @@ def filter_dia_da_sorte_bets():
     data = request.get_json(silent=True) or {}
     try:
         cur = conn.cursor()
+        where_clause, params_tuple, limit, offset = _build_dia_da_sorte_bets_filters(data)
 
-        def _add_range(min_val, max_val, column, conditions, params):
-            if min_val is not None:
-                conditions.append(f"{column} >= ?")
-                params.append(int(min_val))
-            if max_val is not None:
-                conditions.append(f"{column} <= ?")
-                params.append(int(max_val))
-
-        conditions: list[str] = []
-        params: list[int] = []
-
-        range_mappings = [
-            ('paresMin', 'paresMax', 'pares'),
-            ('imparesMin', 'imparesMax', 'impares'),
-            ('maxConsecMin', 'maxConsecMax', 'max_consec'),
-            ('maiorSaltoMin', 'maiorSaltoMax', 'maior_salto'),
-            ('isolatedMin', 'isolatedMax', 'isoladas'),
-            ('nahNMin', 'nahNMax', 'nah_n'),
-            ('nahAMin', 'nahAMax', 'nah_a'),
-            ('nahHMin', 'nahHMax', 'nah_h'),
-        ]
-        for min_key, max_key, column in range_mappings:
-            _add_range(data.get(min_key), data.get(max_key), column, conditions, params)
-
-        qdls_min = data.get('qdlsMin') or []
-        qdls_max = data.get('qdlsMax') or []
-        for idx in range(5):
-            col = f'qdls_s{idx + 1}'
-            _add_range(
-                qdls_min[idx] if idx < len(qdls_min) else None,
-                qdls_max[idx] if idx < len(qdls_max) else None,
-                col,
-                conditions,
-                params,
-            )
-
-        units_min = data.get('unitsMin') or []
-        units_max = data.get('unitsMax') or []
-        for idx in range(10):
-            col = f'unit_{idx}'
-            _add_range(
-                units_min[idx] if idx < len(units_min) else None,
-                units_max[idx] if idx < len(units_max) else None,
-                col,
-                conditions,
-                params,
-            )
-
-        tens_min = data.get('tensMin') or []
-        tens_max = data.get('tensMax') or []
-        for idx in range(4):
-            col = f'ten_{idx}'
-            _add_range(
-                tens_min[idx] if idx < len(tens_min) else None,
-                tens_max[idx] if idx < len(tens_max) else None,
-                col,
-                conditions,
-                params,
-            )
-
-        where_clause = ''
-        if conditions:
-            where_clause = 'WHERE ' + ' AND '.join(conditions)
-
-        limit = int(data.get('limit') or 100)
-        limit = max(1, min(limit, 1000))
-        offset = int(data.get('offset') or 0)
-        offset = max(0, offset)
-
-        params_tuple = tuple(params)
         total = cur.execute(
             f'SELECT COUNT(*) FROM dia_da_sorte_bets {where_clause}',
             params_tuple,
@@ -319,6 +383,157 @@ def filter_dia_da_sorte_bets():
         return jsonify({'total': total, 'limit': limit, 'offset': offset, 'results': results})
     finally:
         conn.close()
+
+
+@app.route('/api/dia-da-sorte/apostas/salvar', methods=['POST'])
+def save_dia_da_sorte_bets():
+    conn = get_write_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    data = request.get_json(silent=True) or {}
+    try:
+        cur = conn.cursor()
+        where_clause, params_tuple, _, _ = _build_dia_da_sorte_bets_filters(data)
+
+        total_matches = cur.execute(
+            f'SELECT COUNT(*) FROM dia_da_sorte_bets {where_clause}',
+            params_tuple,
+        ).fetchone()[0]
+
+        if total_matches == 0:
+            return jsonify({
+                'nextConcurso': None,
+                'totalMatches': 0,
+                'inserted': 0,
+                'alreadySaved': 0,
+                'message': 'Nenhuma aposta encontrada para salvar.'
+            })
+
+        last_concurso = cur.execute(
+            'SELECT MAX(concurso) FROM dia_da_sorte_results'
+        ).fetchone()[0]
+        if last_concurso is None:
+            return jsonify({'message': 'Nenhum resultado cadastrado para calcular o proximo concurso.'}), 400
+        next_concurso = last_concurso + 1
+
+        _ensure_saved_bets_table(cur)
+
+        select_cur = conn.cursor()
+        select_sql = f'''
+            SELECT d1, d2, d3, d4, d5, d6, d7
+            FROM dia_da_sorte_bets
+            {where_clause}
+            ORDER BY id
+        '''
+
+        insert_sql = '''
+            INSERT OR IGNORE INTO dia_da_sorte_saved_bets (
+                concurso, d1, d2, d3, d4, d5, d6, d7, acertos
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+        '''
+
+        initial_changes = conn.total_changes
+        batch = []
+        for row in select_cur.execute(select_sql, params_tuple):
+            batch.append((next_concurso, row['d1'], row['d2'], row['d3'], row['d4'], row['d5'], row['d6'], row['d7']))
+            if len(batch) >= 1000:
+                cur.executemany(insert_sql, batch)
+                batch.clear()
+        if batch:
+            cur.executemany(insert_sql, batch)
+
+        inserted = conn.total_changes - initial_changes
+        already_saved = max(total_matches - inserted, 0)
+        conn.commit()
+        return jsonify({
+            'nextConcurso': next_concurso,
+            'totalMatches': total_matches,
+            'inserted': inserted,
+            'alreadySaved': already_saved
+        })
+    finally:
+        conn.close()
+
+
+@app.route('/api/dia-da-sorte/apostas/salvas')
+def list_saved_dia_da_sorte_bets():
+    conn = get_write_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    concurso_param = request.args.get('concurso', type=int)
+    try:
+        cur = conn.cursor()
+        _ensure_saved_bets_table(cur)
+
+        params: list[int] = []
+        where_clause = ''
+        if concurso_param is not None:
+            where_clause = 'WHERE sb.concurso = ?'
+            params.append(concurso_param)
+
+        rows = cur.execute(
+            f'''
+                SELECT
+                    sb.id,
+                    sb.concurso,
+                    sb.d1, sb.d2, sb.d3, sb.d4, sb.d5, sb.d6, sb.d7,
+                    sb.acertos,
+                    sb.created_at,
+                    r.data_sorteio,
+                    r.bola1, r.bola2, r.bola3, r.bola4, r.bola5, r.bola6, r.bola7
+                FROM dia_da_sorte_saved_bets sb
+                LEFT JOIN dia_da_sorte_results r ON r.concurso = sb.concurso
+                {where_clause}
+                ORDER BY sb.concurso DESC, sb.id ASC
+            ''',
+            tuple(params),
+        ).fetchall()
+
+        updates: list[tuple[int, int]] = []
+        results = []
+        for row in rows:
+            dezenas = [row['d1'], row['d2'], row['d3'], row['d4'], row['d5'], row['d6'], row['d7']]
+            resultado = None
+            calculado = None
+
+            if row['bola1'] is not None:
+                resultado = [
+                    row['bola1'],
+                    row['bola2'],
+                    row['bola3'],
+                    row['bola4'],
+                    row['bola5'],
+                    row['bola6'],
+                    row['bola7'],
+                ]
+                calculado = len(set(dezenas) & set(resultado))
+                if calculado != row['acertos']:
+                    updates.append((calculado, row['id']))
+
+            results.append({
+                'id': row['id'],
+                'concurso': row['concurso'],
+                'dezenas': dezenas,
+                'acertos': calculado if calculado is not None else None,
+                'acertosRegistrados': row['acertos'],
+                'resultadoDisponivel': calculado is not None,
+                'resultado': resultado,
+                'dataSorteio': row['data_sorteio'],
+                'createdAt': row['created_at'],
+            })
+
+        if updates:
+            cur.executemany(
+                'UPDATE dia_da_sorte_saved_bets SET acertos = ? WHERE id = ?',
+                updates,
+            )
+            conn.commit()
+
+        return jsonify({'total': len(results), 'results': results})
+    finally:
+        conn.close()
+
+
 @app.route('/api/results')
 def list_results():
     def _parse_int_list(values):
@@ -999,6 +1214,21 @@ def conferir_selecao():
         acertos = len(s_bet & s_next)
         out.append({'dezenas': sorted(list(s_bet)), 'acertos': acertos})
     return jsonify({'nextConcurso': cutoff + 1, 'nextDezenas': next_dezenas, 'nextInfo': next_info, 'filtersCheck': filters_check, 'results': out})
+
+
+@app.route('/api/dia-da-sorte/atualizar', methods=['POST'])
+def update_dia_da_sorte():
+    try:
+        inserted = update_dia_da_sorte_results()
+        count = len(inserted)
+        if count:
+            message = f'{count} concurso(s) atualizado(s): {", ".join(str(item) for item in inserted)}.'
+        else:
+            message = 'Nenhum novo concurso encontrado.'
+        return jsonify({'inserted': inserted, 'count': count, 'message': message})
+    except Exception as exc:
+        app.logger.exception('Falha ao atualizar resultados do Dia da Sorte: %s', exc)
+        return jsonify({'message': 'Falha ao atualizar resultados do Dia da Sorte.'}), 500
 
 @app.after_request
 def add_cors_headers(response):

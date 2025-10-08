@@ -2,7 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import {
   DiaDaSorteService,
   DiaDaSorteBet,
-  DiaDaSorteBetsResponse
+  DiaDaSorteBetsResponse,
+  DiaDaSorteLastResult,
+  DiaDaSorteSaveResponse
 } from '../../services/dia-da-sorte.service';
 
 type RangeField = { min: string; max: string };
@@ -24,6 +26,10 @@ export class DiaDaSorteBetsComponent implements OnInit {
   offset = 0;
   loading = false;
   error?: string;
+  latestResult?: DiaDaSorteLastResult;
+  saving = false;
+  saveStatus?: string;
+  saveError?: string;
 
   paresMin = '2';
   paresMax = '5';
@@ -81,12 +87,16 @@ export class DiaDaSorteBetsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadLatestResult();
     this.applyFilters();
   }
 
   applyFilters(): void {
     this.loading = true;
+    this.saving = false;
     this.error = undefined;
+    this.saveStatus = undefined;
+    this.saveError = undefined;
     const payload = this.buildPayload();
     this.diaDaSorteService.filterBets(payload).subscribe({
       next: (response: DiaDaSorteBetsResponse) => {
@@ -105,7 +115,19 @@ export class DiaDaSorteBetsComponent implements OnInit {
     });
   }
 
-  resetFilters(): void {
+  loadLatestResult(): void {
+    this.diaDaSorteService.getLastResult().subscribe({
+      next: (result: DiaDaSorteLastResult) => {
+        this.latestResult = result;
+      },
+      error: (err) => {
+        console.error('Falha ao obter ultimo resultado do Dia da Sorte', err);
+        this.latestResult = undefined;
+      }
+    });
+  }
+
+  restoreDefaultFilters(apply: boolean = false): void {
     this.paresMin = '2';
     this.paresMax = '5';
     this.imparesMin = '2';
@@ -125,6 +147,40 @@ export class DiaDaSorteBetsComponent implements OnInit {
     this.limit = 100;
     this.offset = 0;
     this.resetRangeFilters();
+    this.saveStatus = undefined;
+    this.saveError = undefined;
+    if (apply) {
+      this.applyFilters();
+    }
+  }
+
+  saveFilteredBets(): void {
+    if (this.loading || this.saving || this.total === 0) {
+      return;
+    }
+    this.saving = true;
+    this.saveStatus = undefined;
+    this.saveError = undefined;
+    const payload = this.buildPayload();
+    this.diaDaSorteService.saveFilteredBets(payload).subscribe({
+      next: (response: DiaDaSorteSaveResponse) => {
+        if (!response.totalMatches) {
+          this.saveStatus = response.message ?? 'Nenhuma aposta encontrada para salvar.';
+        } else {
+          const inseridas = response.inserted;
+          const jaExistiam = response.alreadySaved;
+          this.saveStatus = `Concurso ${response.nextConcurso}: ${inseridas} aposta(s) salva(s), ${jaExistiam} ja existiam.`;
+        }
+      },
+      error: (err) => {
+        console.error('Falha ao salvar apostas filtradas', err);
+        this.saveError = 'Falha ao salvar apostas filtradas.';
+        this.saving = false;
+      },
+      complete: () => {
+        this.saving = false;
+      }
+    });
   }
 
   formatDigitStats(bet: DiaDaSorteBet): string {

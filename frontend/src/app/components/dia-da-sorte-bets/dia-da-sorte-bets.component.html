@@ -1,5 +1,8 @@
 ﻿<div class="bets-page">
   <h2>Gerar apostas por filtros</h2>
+  <p *ngIf="latestResult" class="status info">
+    Ultimo resultado registrado: concurso {{ latestResult.concurso }} ({{ latestResult.dataSorteio }})
+  </p>
 
   <form class="filters" (ngSubmit)="applyFilters()">
     <div class="filter-row">
@@ -90,11 +93,19 @@
     </div>
 
     <div class="actions">
-      <button type="submit">Aplicar filtros</button>
-      <button type="button" (click)="resetFilters()">Limpar</button>
+      <button type="submit" [disabled]="loading || saving">Aplicar filtros</button>
+      <button type="button" (click)="restoreDefaultFilters(true)" [disabled]="loading || saving">
+        Restaurar filtros padrao
+      </button>
+      <button type="button" (click)="saveFilteredBets()" [disabled]="loading || saving || total === 0">
+        Salvar apostas filtradas
+      </button>
     </div>
   </form>
 
+  <p *ngIf="saving" class="status">Salvando apostas filtradas...</p>
+  <p *ngIf="saveStatus && !saving" class="status">{{ saveStatus }}</p>
+  <p *ngIf="saveError" class="status error">{{ saveError }}</p>
   <p *ngIf="loading" class="status">Carregando apostas...</p>
   <p *ngIf="error" class="status error">{{ error }}</p>
   <p *ngIf="!loading && !error">Total encontrado: {{ total }}</p>
