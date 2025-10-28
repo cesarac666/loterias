@@ -1,0 +1,184 @@
+{
+  "id": "00b5909d-9804-431f-814a-1c0d3ecba001",
+  "version": "2.0",
+  "name": "Loterias-Dia-da-Sorte",
+  "url": "https://www.loteriasonline.caixa.gov.br",
+  "tests": [{
+    "id": "aacdaa79-e775-4985-a15f-478a46f82486",
+    "name": "Loterias-Dia-Da-Sorte",
+    "commands": [{
+      "id": "aa9eebd5-2c0a-4174-b060-4a8dffe2e5e2",
+      "comment": "",
+      "command": "open",
+      "target": "/silce-web/",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "d6f10897-cd94-4344-9d2c-cfacaa40cd44",
+      "comment": "",
+      "command": "setWindowSize",
+      "target": "1673x942",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "cdb71dee-8cfd-4c5a-8687-660e31400529",
+      "comment": "",
+      "command": "click",
+      "target": "id=Dia-de-Sorte",
+      "targets": [
+        ["id=Dia-de-Sorte", "id"],
+        ["linkText=Dia de Sorte", "linkText"],
+        ["css=#Dia-de-Sorte", "css:finder"],
+        ["xpath=//a[contains(text(),'Dia de Sorte')]", "xpath:link"],
+        ["xpath=//a[@id='Dia-de-Sorte']", "xpath:attributes"],
+        ["xpath=//div[@id='bs-example-navbar-collapse-1']/ul/li[12]/a", "xpath:idRelative"],
+        ["xpath=//a[contains(@href, '#/dia-de-sorte')]", "xpath:href"],
+        ["xpath=//li[12]/a", "xpath:position"],
+        ["xpath=//a[contains(.,'Dia de Sorte')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "c8a40a02-1bdd-4fbd-9645-d47bac2e1d1a",
+      "comment": "",
+      "command": "click",
+      "target": "css=#n01 .ng-binding",
+      "targets": [
+        ["css=#n01 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n01']/span/span", "xpath:idRelative"],
+        ["xpath=//div/div/div/ul/li/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "4e6d21ae-c981-4e0e-9795-6d15ce93fde1",
+      "comment": "",
+      "command": "click",
+      "target": "css=#n03 .ng-binding",
+      "targets": [
+        ["css=#n03 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n03']/span/span", "xpath:idRelative"],
+        ["xpath=//li[3]/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "087afc71-026c-4c98-89a6-34917df43da5",
+      "comment": "",
+      "command": "click",
+      "target": "css=#n05 .ng-binding",
+      "targets": [
+        ["css=#n05 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n05']/span/span", "xpath:idRelative"],
+        ["xpath=//li[5]/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "02ded257-d0b2-498d-ac97-9c312a4bb428",
+      "comment": "",
+      "command": "click",
+      "target": "css=#n07 .ng-binding",
+      "targets": [
+        ["css=#n07 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n07']/span/span", "xpath:idRelative"],
+        ["xpath=//li[7]/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "6199534d-80e5-4e56-8439-802184308307",
+      "comment": "",
+      "command": "click",
+      "target": "css=#n09 .ng-binding",
+      "targets": [
+        ["css=#n09 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n09']/span/span", "xpath:idRelative"],
+        ["xpath=//li[9]/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "ae8ded14-a3c0-4916-971b-00b10e49e73b",
+      "comment": "",
+      "command": "mouseOver",
+      "target": "css=#n09 .ng-binding",
+      "targets": [
+        ["css=#n09 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n09']/span/span", "xpath:idRelative"],
+        ["xpath=//li[9]/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "a25046c1-ad9f-49db-9300-8ef77781f21b",
+      "comment": "",
+      "command": "mouseOut",
+      "target": "css=#n09 .ng-binding",
+      "targets": [
+        ["css=#n09 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n09']/span/span", "xpath:idRelative"],
+        ["xpath=//li[9]/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "68879c5f-6d92-4b2e-8c49-d3bf0ab7d766",
+      "comment": "",
+      "command": "click",
+      "target": "css=#n11 .ng-binding",
+      "targets": [
+        ["css=#n11 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n11']/span/span", "xpath:idRelative"],
+        ["xpath=//li[11]/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "f1e82660-f48a-46a1-801b-4eac0a68611f",
+      "comment": "",
+      "command": "click",
+      "target": "css=#n13 .ng-binding",
+      "targets": [
+        ["css=#n13 .ng-binding", "css:finder"],
+        ["xpath=//a[@id='n13']/span/span", "xpath:idRelative"],
+        ["xpath=//li[13]/a/span/span", "xpath:position"]
+      ],
+      "value": ""
+    }, {
+      "id": "8a8f17d7-cf05-465f-8d43-9744735152f9",
+      "comment": "",
+      "command": "runScript",
+      "target": "window.scrollTo(0,0.7407407760620117)",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "8c281b11-fe58-45ce-929e-6c98e4f65220",
+      "comment": "",
+      "command": "click",
+      "target": "css=.ng-scope:nth-child(1) > .titulo-mes-sorte",
+      "targets": [
+        ["css=.ng-scope:nth-child(1) > .titulo-mes-sorte", "css:finder"],
+        ["xpath=//div[@id='carrossel_diadesorte']/ul/li/h3", "xpath:idRelative"],
+        ["xpath=//li/h3", "xpath:position"],
+        ["xpath=//h3[contains(.,'JAN')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "9c1b3fc9-9ec1-4873-8634-72fec0ac6678",
+      "comment": "",
+      "command": "click",
+      "target": "id=colocarnocarrinho",
+      "targets": [
+        ["id=colocarnocarrinho", "id"],
+        ["css=#colocarnocarrinho", "css:finder"],
+        ["xpath=//button[@id='colocarnocarrinho']", "xpath:attributes"],
+        ["xpath=//div[@id='container-volante']/div/div[13]/button", "xpath:idRelative"],
+        ["xpath=//div[13]/button", "xpath:position"],
+        ["xpath=//button[contains(.,' Colocar no Carrinho')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }]
+  }],
+  "suites": [{
+    "id": "c633239b-d294-4442-aa7b-558088f6465b",
+    "name": "Default Suite",
+    "persistSession": false,
+    "parallel": false,
+    "timeout": 300,
+    "tests": ["aacdaa79-e775-4985-a15f-478a46f82486"]
+  }],
+  "urls": ["https://www.loteriasonline.caixa.gov.br/"],
+  "plugins": []
+}

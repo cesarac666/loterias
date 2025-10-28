@@ -1,0 +1,5 @@
+COOKIE_SELECTORS = [
+    "#btnCookie",
+    "#bt-aceito",
+    "button#btnCookie",
+    "button[onclick*='cookie']

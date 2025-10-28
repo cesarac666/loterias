@@ -1,0 +1,82 @@
+{
+  "id": "bd518045-887a-4be4-9ac0-4cda3dd229a6",
+  "version": "2.0",
+  "name": "Teste",
+  "url": "https://www.loteriasonline.caixa.gov.br",
+  "tests": [{
+    "id": "64625dee-7697-4a66-b986-9dde978c7d60",
+    "name": "Dia-Da-Sorte-Complemento",
+    "commands": [{
+      "id": "1b22b8bd-1779-48f4-ae78-ad4e791b0b5f",
+      "comment": "",
+      "command": "open",
+      "target": "/silce-web/",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "d1c9c91e-672e-477d-b17e-d5b125138e41",
+      "comment": "",
+      "command": "setWindowSize",
+      "target": "1673x942",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "e684d9cf-ab3a-4ec4-ba67-13e5640cdc6c",
+      "comment": "",
+      "command": "click",
+      "target": "id=botaosim",
+      "targets": [
+        ["id=botaosim", "id"],
+        ["linkText=Sim", "linkText"],
+        ["css=#botaosim", "css:finder"],
+        ["xpath=//a[contains(text(),'Sim')]", "xpath:link"],
+        ["xpath=//a[@id='botaosim']", "xpath:attributes"],
+        ["xpath=(//a[contains(@href, '')])[4]", "xpath:href"],
+        ["xpath=//div[2]/div/a[2]", "xpath:position"],
+        ["xpath=//a[contains(.,'Sim')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "034b1803-50b3-40e4-9e46-2669b0c66e67",
+      "comment": "",
+      "command": "click",
+      "target": "id=Dia-de-Sorte",
+      "targets": [
+        ["id=Dia-de-Sorte", "id"],
+        ["linkText=Dia de Sorte", "linkText"],
+        ["css=#Dia-de-Sorte", "css:finder"],
+        ["xpath=//a[contains(text(),'Dia de Sorte')]", "xpath:link"],
+        ["xpath=//a[@id='Dia-de-Sorte']", "xpath:attributes"],
+        ["xpath=//div[@id='bs-example-navbar-collapse-1']/ul/li[12]/a", "xpath:idRelative"],
+        ["xpath=//a[contains(@href, '#/dia-de-sorte')]", "xpath:href"],
+        ["xpath=//li[12]/a", "xpath:position"],
+        ["xpath=//a[contains(.,'Dia de Sorte')]", "xpath:innerText"]
+      ],
+      "value": ""
+    }, {
+      "id": "4cb9c216-da09-47e3-9c5a-e78742ebad83",
+      "comment": "",
+      "command": "runScript",
+      "target": "window.scrollTo(0,1.4814815521240234)",
+      "targets": [],
+      "value": ""
+    }, {
+      "id": "4f73ba96-3276-4d20-b415-faf026c70949",
+      "comment": "",
+      "command": "close",
+      "target": "",
+      "targets": [],
+      "value": ""
+    }]
+  }],
+  "suites": [{
+    "id": "9599985f-1cce-45b7-8be1-b93a9be39d62",
+    "name": "Default Suite",
+    "persistSession": false,
+    "parallel": false,
+    "timeout": 300,
+    "tests": ["64625dee-7697-4a66-b986-9dde978c7d60"]
+  }],
+  "urls": ["https://www.loteriasonline.caixa.gov.br/"],
+  "plugins": []
+}

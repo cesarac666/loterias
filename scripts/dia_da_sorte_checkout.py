@@ -1,0 +1,249 @@
+"""
+Script placeholder para automatizar apostas do Dia da Sorte.
+
+Este script não executa a automação real. Ele apenas demonstra onde você deve
+inserir a lógica de automação (por exemplo, utilizando Selenium) para enviar as
+apostas salvas no banco `dia_da_sorte_saved_bets` para o site oficial das Loterias.
+
+Instruções:
+1. Instale as dependências necessárias (ex.: selenium).
+2. Implemente a função `enviar_apostas` com a automação desejada.
+3. Execute este script manualmente ou via endpoint `/api/dia-da-sorte/apostas/enviar`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sqlite3
+import time
+from pathlib import Path
+from typing import Iterable, Optional
+
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import ElementClickInterceptedException, TimeoutException
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+DB_PATH = ROOT_DIR / "database" / "lotofacil.db"
+
+# Ajuste estes valores conforme necessário
+BASE_URL = "https://www.loteriasonline.caixa.gov.br/silce-web/#/termos-de-uso"
+LOTERIAS_URL = f"{BASE_URL}/silce-web/#/dia-de-sorte"
+# Seletores observados no arquivo Loterias-Dia-da-Sorte.side
+SELECTOR_LINK_DIA_DA_SORTE = "#Dia-de-Sorte"
+SELECTOR_DEZENA = "#n{num:02d}"
+SELECTOR_BOTAO_CARRINHO = "#colocarnocarrinho"
+SELECTOR_TITULO_MES_SORTE = ".ng-scope:nth-child({idx}) > .titulo-mes-sorte"
+MES_SORTE_PADRAO = 1  # 1 = Janeiro; ajuste conforme desejar
+DEFAULT_TIMEOUT = 50
+TERMO_SELECTORS = [
+    "#botaosim",
+    "a#botaosim",
+    "div.modal-footer a#botaosim"
+]
+COOKIE_SELECTORS = [
+    "#btnCookie",
+    "#bt-aceito",
+    "button#btnCookie",
+    "button[onclick*='cookie']",
+    ".lgpd-modal button.btn",
+    "button[ng-click*='aceito']",
+    "#adopt-accept-all-button",
+    "button#adopt-accept-all-button",
+    "button[class*='adopt']",
+    "div[class*='adopt'] button",
+]
+PROFILE_PATH: Optional[Path] = None  # Ex.: Path(r"C:\Users\seu_usuario\AppData\Local\Google\Chrome\User Data")
+
+
+def carregar_apostas(concurso: int | None) -> list[dict]:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        params: tuple = ()
+        where = ""
+        if concurso is not None:
+            where = "WHERE concurso = ?"
+            params = (concurso,)
+        rows = conn.execute(
+            f"""
+            SELECT concurso, d1, d2, d3, d4, d5, d6, d7
+            FROM dia_da_sorte_saved_bets
+            {where}
+            ORDER BY concurso, id
+            """,
+            params,
+        ).fetchall()
+    return [
+        {
+            "concurso": row["concurso"],
+            "dezenas": [row["d1"], row["d2"], row["d3"], row["d4"], row["d5"], row["d6"], row["d7"]],
+        }
+        for row in rows
+    ]
+
+
+def criar_driver() -> webdriver.Chrome:
+    options = ChromeOptions()
+    if PROFILE_PATH:
+        options.add_argument(f"user-data-dir={PROFILE_PATH}")
+    options.add_argument("--start-maximized")
+    driver = webdriver.Chrome(options=options)
+    driver.implicitly_wait(5)
+    return driver
+
+
+def selecionar_dezena(driver: webdriver.Chrome, dezena: int, wait: WebDriverWait) -> None:
+    """
+    Seleciona a dezena usando o padrão de IDs (#n01, #n02, ...).
+    """
+    seletor = SELECTOR_DEZENA.format(num=dezena)
+    attempts = 0
+    while attempts < 3:
+        try:
+            elemento = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, seletor)))
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", elemento)
+            elemento.click()
+            return
+        except ElementClickInterceptedException:
+            attempts += 1
+            driver.execute_script(
+                """
+                document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el){
+                    if (el.style && el.style.zIndex && Number(el.style.zIndex) >= 1000000) {
+                        el.style.display = 'none';
+                    }
+                });
+                """
+            )
+            time.sleep(0.5)
+    raise TimeoutException(f"Não foi possível clicar na dezena {dezena:02d}")
+
+
+def adicionar_aposta_ao_carrinho(driver: webdriver.Chrome, wait: WebDriverWait) -> None:
+    """
+    Clica em "Colocar no Carrinho".
+    """
+    botao_adicionar = wait.until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, SELECTOR_BOTAO_CARRINHO))
+    )
+    botao_adicionar.click()
+
+
+def preparar_nova_aposta(driver: webdriver.Chrome, wait: WebDriverWait) -> None:
+    """
+    Garante que o volante do Dia da Sorte esteja visível.
+    """
+    try:
+        wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#carrossel_diadesorte")))
+    except Exception:
+        pass  # se não houver esse elemento, continue normalmente
+
+
+def selecionar_mes_sorte(driver: webdriver.Chrome, wait: WebDriverWait, indice: int = MES_SORTE_PADRAO) -> None:
+    seletor = SELECTOR_TITULO_MES_SORTE.format(idx=indice)
+    attempts = 0
+    while attempts < 3:
+        try:
+            elemento = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, seletor)))
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", elemento)
+            try:
+                elemento.click()
+            except ElementClickInterceptedException:
+                driver.execute_script("arguments[0].click();", elemento)
+            return
+        except ElementClickInterceptedException:
+            attempts += 1
+            driver.execute_script(
+                "document.querySelectorAll('div[style*=\'position:fixed\'], div[class*=\'adopt\']).forEach(function(el){el.style.display='none';});"
+            )
+            time.sleep(0.5)
+        except TimeoutException:
+            attempts += 1
+    raise TimeoutException('Não foi possível selecionar o mês da sorte.')
+
+
+def enviar_apostas(apostas: Iterable[dict]) -> None:
+    driver = criar_driver()
+    wait = WebDriverWait(driver, DEFAULT_TIMEOUT)
+    driver.get(BASE_URL)
+
+    aceitar_cookies(driver)
+    aceitar_termos(driver)
+
+    try:
+        wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, SELECTOR_LINK_DIA_DA_SORTE))).click()
+        wait.until(EC.url_contains("/dia-de-sorte"))
+    except Exception:
+        # Caso o link não esteja visível, tente navegar diretamente
+        driver.get(LOTERIAS_URL)
+        wait.until(EC.url_contains("/dia-de-sorte"))
+
+    print("Certifique-se de estar logado manualmente se necessário.")
+    time.sleep(5)
+
+    for indice, aposta in enumerate(apostas, start=1):
+        print(f"Processando aposta {indice}: {aposta['dezenas']} (concurso {aposta['concurso']})")
+
+        preparar_nova_aposta(driver, wait)
+
+        for dezena in aposta["dezenas"]:
+            selecionar_dezena(driver, dezena, wait)
+
+        selecionar_mes_sorte(driver, wait, MES_SORTE_PADRAO)
+        adicionar_aposta_ao_carrinho(driver, wait)
+        time.sleep(3)  # pausa breve para evitar detecção como bot
+
+    print("Apostas adicionadas. Abra o carrinho e finalize manualmente.")
+    
+    # input("Pressione Enter para fechar o navegador após revisar o carrinho...")
+    # não fechar pois a sessão não está sendo salva! 
+    # driver.quit()
+
+def tentar_clique(driver: webdriver.Chrome, selectors: list[str], timeout: int = 5) -> bool:
+    for selector in selectors:
+        try:
+            local_wait = WebDriverWait(driver, timeout)
+            elemento = local_wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", elemento)
+            try:
+                elemento.click()
+            except ElementClickInterceptedException:
+                driver.execute_script("arguments[0].click();", elemento)
+            time.sleep(0.3)
+            return True
+        except TimeoutException:
+            continue
+        except Exception:
+            continue
+    return False
+
+
+def aceitar_termos(driver: webdriver.Chrome) -> None:
+    if tentar_clique(driver, TERMO_SELECTORS):
+        time.sleep(0.5)
+
+
+def aceitar_cookies(driver: webdriver.Chrome) -> None:
+    tentar_clique(driver, COOKIE_SELECTORS)
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Enviar apostas do Dia da Sorte para o site oficial.")
+    parser.add_argument("--concurso", type=int, help="Número do concurso para filtrar as apostas.")
+    args = parser.parse_args()
+
+    apostas = carregar_apostas(args.concurso)
+    if not apostas:
+        print("Nenhuma aposta encontrada para o filtro informado.")
+        return
+
+    try:
+        enviar_apostas(apostas)
+    except Exception as exc:
+        print("Falha ao executar automação Selenium:", exc)
+
+
+if __name__ == "__main__":
+    main()

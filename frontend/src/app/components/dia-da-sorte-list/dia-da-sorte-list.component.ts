@@ -1,51 +1,16 @@
 ﻿import { Component, OnInit } from '@angular/core';
-import { DiaDaSorteService, DiaDaSorteResult } from '../../services/dia-da-sorte.service';
+import {
+  DiaDaSorteService,
+  DiaDaSorteResult,
+  DiaDaSorteSummary,
+  ValueSummary,
+  NahSummary,
+  DigitSummary,
+  DigitFrequencySummary,
+  DigitProfile
+} from '../../services/dia-da-sorte.service';
 
-type RangeField = { min: number; max: number };
-type DigitProfile = 'quente' | 'fria' | 'neutra';
-
-interface ValueSummary {
-  min: number;
-  max: number;
-  mode: number | null;
-}
-
-interface NahSummary {
-  n: ValueSummary | null;
-  a: ValueSummary | null;
-  h: ValueSummary | null;
-}
-
-interface DigitSummary {
-  units: Record<string, ValueSummary | null>;
-  tens: Record<string, ValueSummary | null>;
-}
-
-interface DigitFrequency {
-  total: number;
-  average: number;
-  profile: DigitProfile;
-}
-
-interface DigitFrequencySummary {
-  units: Record<string, DigitFrequency>;
-  tens: Record<string, DigitFrequency>;
-  overallUnitsAverage: number;
-  overallTensAverage: number;
-}
-
-interface SummaryStats {
-  pares: ValueSummary | null;
-  impares: ValueSummary | null;
-  maxConsec: ValueSummary | null;
-  maiorSalto: ValueSummary | null;
-  ganhadores7: ValueSummary | null;
-  isolatedCount: ValueSummary | null;
-  nah: NahSummary;
-  qdls: (ValueSummary | null)[];
-  digitStats: DigitSummary;
-  digitFrequency: DigitFrequencySummary;
-}
+type SummaryStats = DiaDaSorteSummary;
 
 interface SummaryTracker {
   min: number;
@@ -105,7 +70,8 @@ export class DiaDaSorteListComponent implements OnInit {
         this.results = response.results;
         this.total = response.total;
         this.loading = false;
-        this.computeSummary(this.results);
+        const apiSummary = (response.summary ?? null) as SummaryStats | null;
+        this.summary = apiSummary ?? this.computeSummary(this.results);
       },
       error: (err) => {
         console.error('Falha ao carregar Dia da Sorte', err);
@@ -301,10 +267,9 @@ export class DiaDaSorteListComponent implements OnInit {
     return { min: tracker.min, max: tracker.max, mode: modeValue };
   }
 
-  private computeSummary(results: DiaDaSorteResult[]): void {
+  private computeSummary(results: DiaDaSorteResult[]): SummaryStats | null {
     if (!results.length) {
-      this.summary = null;
-      return;
+      return null;
     }
 
     const paresTracker = this.createTracker();
@@ -315,7 +280,7 @@ export class DiaDaSorteListComponent implements OnInit {
     const ganhadoresTracker = this.createTracker();
     const nahNTracker = this.createTracker();
     const nahATracker = this.createTracker();
-     const nahHTracker = this.createTracker();
+    const nahHTracker = this.createTracker();
 
     const qdlsLength = results[0].qdls?.length ?? 0;
     const qdlsTrackers = Array.from({ length: qdlsLength }, () => this.createTracker());
@@ -410,7 +375,7 @@ export class DiaDaSorteListComponent implements OnInit {
       };
     });
 
-    this.summary = {
+    const summary: SummaryStats = {
       pares: this.finalizeTracker(paresTracker),
       impares: this.finalizeTracker(imparesTracker),
       maxConsec: this.finalizeTracker(maxConsecTracker),
@@ -429,6 +394,8 @@ export class DiaDaSorteListComponent implements OnInit {
       },
       digitFrequency
     };
+
+    return summary;
   }
 
   private classifyDigit(avg: number, baseline: number): DigitProfile {

@@ -11,11 +11,19 @@
       [(ngModel)]="concursoFiltro"
       placeholder="Numero do concurso"
     />
-    <button type="submit" [disabled]="loading">Carregar</button>
-    <button type="button" (click)="clearFilter()" [disabled]="loading">Limpar filtro</button>
+    <button type="submit" [disabled]="loading || deleting || submitting">Carregar</button>
+    <button type="button" (click)="clearFilter()" [disabled]="loading || deleting || submitting">Limpar filtro</button>
+    <button type="button" (click)="deleteSavedBets()" [disabled]="loading || deleting || submitting">
+      Excluir apostas
+    </button>
+    <button type="button" (click)="submitBetsOnline()" [disabled]="loading || deleting || submitting">
+      Realizar apostas online
+    </button>
   </form>
 
   <p *ngIf="loading" class="status">Carregando apostas salvas...</p>
+  <p *ngIf="deleting" class="status">Excluindo apostas salvas...</p>
+  <p *ngIf="submitting" class="status">Iniciando automacao de apostas. Verifique o navegador...</p>
   <p *ngIf="error" class="status error">{{ error }}</p>
   <p *ngIf="status && !loading" class="status">{{ status }}</p>
 
@@ -29,7 +37,7 @@
       type="button"
       class="sort-button"
       (click)="toggleSortByHits()"
-      [disabled]="loading || !bets.length"
+      [disabled]="loading || deleting || submitting || !bets.length"
     >
       Ordenar por acertos {{ ordenarPorAcertosDesc ? '(desc)' : '(asc)' }}
     </button>

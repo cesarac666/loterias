@@ -4,7 +4,8 @@ import {
   DiaDaSorteBet,
   DiaDaSorteBetsResponse,
   DiaDaSorteLastResult,
-  DiaDaSorteSaveResponse
+  DiaDaSorteSaveResponse,
+  DiaDaSorteSummary
 } from '../../services/dia-da-sorte.service';
 
 type RangeField = { min: string; max: string };
@@ -27,6 +28,7 @@ export class DiaDaSorteBetsComponent implements OnInit {
   loading = false;
   error?: string;
   latestResult?: DiaDaSorteLastResult;
+  summaryDefaults: DiaDaSorteSummary | null = null;
   saving = false;
   saveStatus?: string;
   saveError?: string;
@@ -88,7 +90,7 @@ export class DiaDaSorteBetsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadLatestResult();
-    this.applyFilters();
+    this.loadSummaryDefaults();
   }
 
   applyFilters(): void {
@@ -127,26 +129,84 @@ export class DiaDaSorteBetsComponent implements OnInit {
     });
   }
 
+  loadSummaryDefaults(): void {
+    this.diaDaSorteService.getResultsSummary().subscribe({
+      next: (summary: DiaDaSorteSummary) => {
+        this.summaryDefaults = summary;
+        this.restoreDefaultFilters(false);
+        this.applyFilters();
+      },
+      error: (err) => {
+        console.error('Falha ao carregar resumo estatistico do Dia da Sorte', err);
+        this.summaryDefaults = null;
+        this.restoreDefaultFilters(false);
+        this.applyFilters();
+      }
+    });
+  }
+
   restoreDefaultFilters(apply: boolean = false): void {
-    this.paresMin = '2';
-    this.paresMax = '5';
-    this.imparesMin = '2';
-    this.imparesMax = '5';
-    this.maxConsecMin = '1';
-    this.maxConsecMax = '5';
-    this.maiorSaltoMin = '5';
-    this.maiorSaltoMax = '16';
-    this.isolatedMin = '0';
-    this.isolatedMax = '4';
-    this.nahNMin = '4';
-    this.nahNMax = '7';
-    this.nahAMin = '0';
-    this.nahAMax = '3';
-    this.nahHMin = '0';
-    this.nahHMax = '1';
+    const summary = this.summaryDefaults;
+    const toString = (value: number | null | undefined, fallback: string): string =>
+      value != null ? String(value) : fallback;
+
+    if (summary) {
+      this.paresMin = toString(summary.pares?.min, '2');
+      this.paresMax = toString(summary.pares?.max, '5');
+      this.imparesMin = toString(summary.impares?.min, '2');
+      this.imparesMax = toString(summary.impares?.max, '5');
+      this.maxConsecMin = toString(summary.maxConsec?.min, '1');
+      this.maxConsecMax = toString(summary.maxConsec?.max, '5');
+      this.maiorSaltoMin = toString(summary.maiorSalto?.min, '5');
+      this.maiorSaltoMax = toString(summary.maiorSalto?.max, '16');
+      this.isolatedMin = toString(summary.isolatedCount?.min, '0');
+      this.isolatedMax = toString(summary.isolatedCount?.max, '4');
+      this.nahNMin = toString(summary.nah.n?.min ?? null, '4');
+      this.nahNMax = toString(summary.nah.n?.max ?? null, '7');
+      this.nahAMin = toString(summary.nah.a?.min ?? null, '0');
+      this.nahAMax = toString(summary.nah.a?.max ?? null, '3');
+      this.nahHMin = toString(summary.nah.h?.min ?? null, '0');
+      this.nahHMax = toString(summary.nah.h?.max ?? null, '1');
+
+      const qdlsSummary = summary.qdls ?? [];
+      this.qdlsFilters = this.defaultQdls.map((defaults, idx) => ({
+        min: toString(qdlsSummary[idx]?.min, defaults.min),
+        max: toString(qdlsSummary[idx]?.max, defaults.max)
+      }));
+
+      const unitSummary = summary.digitStats.units;
+      this.unitFilters = this.unitDigits.map((digit, idx) => ({
+        min: toString(unitSummary[digit]?.min, this.defaultUnits[idx].min),
+        max: toString(unitSummary[digit]?.max, this.defaultUnits[idx].max)
+      }));
+
+      const tenSummary = summary.digitStats.tens;
+      this.tenFilters = this.tenDigits.map((digit, idx) => ({
+        min: toString(tenSummary[digit]?.min, this.defaultTens[idx].min),
+        max: toString(tenSummary[digit]?.max, this.defaultTens[idx].max)
+      }));
+    } else {
+      this.paresMin = '2';
+      this.paresMax = '5';
+      this.imparesMin = '2';
+      this.imparesMax = '5';
+      this.maxConsecMin = '1';
+      this.maxConsecMax = '5';
+      this.maiorSaltoMin = '5';
+      this.maiorSaltoMax = '16';
+      this.isolatedMin = '0';
+      this.isolatedMax = '4';
+      this.nahNMin = '4';
+      this.nahNMax = '7';
+      this.nahAMin = '0';
+      this.nahAMax = '3';
+      this.nahHMin = '0';
+      this.nahHMax = '1';
+      this.resetRangeFilters();
+    }
+
     this.limit = 100;
     this.offset = 0;
-    this.resetRangeFilters();
     this.saveStatus = undefined;
     this.saveError = undefined;
     if (apply) {

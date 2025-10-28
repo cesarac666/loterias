@@ -3,6 +3,11 @@ import sqlite3
 import json 
 import csv
 import sys
+import logging
+import subprocess
+from collections import Counter, defaultdict
+from logging.handlers import RotatingFileHandler
+from typing import Optional
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -14,6 +19,17 @@ from imports.update_diadesorte_results import update_results as update_dia_da_so
 
 app = Flask(__name__)
 DB_PATH = ROOT_DIR / 'database' / 'lotofacil.db'
+LOG_PATH = BASE_DIR / 'app.log'
+CHECKOUT_SCRIPT = ROOT_DIR / 'scripts' / 'dia_da_sorte_checkout.py'
+LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+if not app.logger.handlers:
+    handler = RotatingFileHandler(LOG_PATH, maxBytes=1_000_000, backupCount=5, encoding='utf-8')
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    handler.setFormatter(formatter)
+    app.logger.addHandler(handler)
+app.logger.setLevel(logging.INFO)
 
 def get_connection():
     """Create a read-only connection to the SQLite database.
@@ -70,6 +86,200 @@ def _ensure_saved_bets_table(cur: sqlite3.Cursor) -> None:
         ON dia_da_sorte_saved_bets(concurso)
         '''
     )
+
+
+UNIT_DIGITS = [str(i) for i in range(10)]
+TEN_DIGITS = [str(i) for i in range(4)]
+
+
+def _safe_json_loads(value, fallback):
+    if value in (None, ''):
+        return fallback
+    try:
+        return json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return fallback
+
+
+def _value_summary_from_list(values):
+    filtered = [v for v in values if v is not None]
+    if not filtered:
+        return None
+    counter = Counter(filtered)
+    mode = max(counter.items(), key=lambda item: (item[1], item[0]))[0]
+    return {'min': min(filtered), 'max': max(filtered), 'mode': mode}
+
+
+def _classify_digit(avg: float, baseline: float) -> str:
+    tolerance = 0.2
+    if avg > baseline + tolerance:
+        return 'quente'
+    if avg < baseline - tolerance:
+        return 'fria'
+    return 'neutra'
+
+
+def _compute_dia_da_sorte_summary(results: list[dict]) -> Optional[dict]:
+    if not results:
+        return None
+
+    metrics = defaultdict(list)
+    nah_metrics = {'n': [], 'a': [], 'h': []}
+    qdls_values = [[] for _ in range(5)]
+    units_values = {key: [] for key in UNIT_DIGITS}
+    tens_values = {key: [] for key in TEN_DIGITS}
+    unit_totals = {key: 0 for key in UNIT_DIGITS}
+    ten_totals = {key: 0 for key in TEN_DIGITS}
+
+    for item in results:
+        metrics['pares'].append(item.get('pares'))
+        metrics['impares'].append(item.get('impares'))
+        metrics['maxConsec'].append(item.get('maxConsec'))
+        metrics['maiorSalto'].append(item.get('maiorSalto'))
+        metrics['isolatedCount'].append(item.get('isolatedCount'))
+        metrics['ganhadores7'].append(item.get('ganhadores7Acertos'))
+
+        nah_n = item.get('nahN')
+        nah_a = item.get('nahA')
+        nah_h = item.get('nahH')
+        if nah_n is not None:
+            nah_metrics['n'].append(nah_n)
+        if nah_a is not None:
+            nah_metrics['a'].append(nah_a)
+        if nah_h is not None:
+            nah_metrics['h'].append(nah_h)
+
+        qdls = item.get('qdls') or []
+        for idx, value in enumerate(qdls):
+            if idx < len(qdls_values):
+                qdls_values[idx].append(value)
+
+        digit_stats = item.get('digitStats') or {}
+        units = digit_stats.get('units') or {}
+        tens = digit_stats.get('tens') or {}
+        for key in UNIT_DIGITS:
+            val = int(units.get(key, 0) or 0)
+            units_values[key].append(val)
+            unit_totals[key] += val
+        for key in TEN_DIGITS:
+            val = int(tens.get(key, 0) or 0)
+            tens_values[key].append(val)
+            ten_totals[key] += val
+
+    total_records = len(results)
+    total_units = sum(unit_totals.values())
+    total_tens = sum(ten_totals.values())
+    overall_units_avg = total_units / len(UNIT_DIGITS) / total_records if total_records else 0.0
+    overall_tens_avg = total_tens / len(TEN_DIGITS) / total_records if total_records else 0.0
+
+    digit_frequency_units = {
+        key: {
+            'total': unit_totals[key],
+            'average': unit_totals[key] / total_records if total_records else 0.0,
+            'profile': _classify_digit(
+                unit_totals[key] / total_records if total_records else 0.0,
+                overall_units_avg,
+            ),
+        }
+        for key in UNIT_DIGITS
+    }
+    digit_frequency_tens = {
+        key: {
+            'total': ten_totals[key],
+            'average': ten_totals[key] / total_records if total_records else 0.0,
+            'profile': _classify_digit(
+                ten_totals[key] / total_records if total_records else 0.0,
+                overall_tens_avg,
+            ),
+        }
+        for key in TEN_DIGITS
+    }
+
+    summary = {
+        'pares': _value_summary_from_list(metrics['pares']),
+        'impares': _value_summary_from_list(metrics['impares']),
+        'maxConsec': _value_summary_from_list(metrics['maxConsec']),
+        'maiorSalto': _value_summary_from_list(metrics['maiorSalto']),
+        'isolatedCount': _value_summary_from_list(metrics['isolatedCount']),
+        'ganhadores7': _value_summary_from_list(metrics['ganhadores7']),
+        'nah': {
+            'n': _value_summary_from_list(nah_metrics['n']),
+            'a': _value_summary_from_list(nah_metrics['a']),
+            'h': _value_summary_from_list(nah_metrics['h']),
+        },
+        'qdls': [_value_summary_from_list(values) for values in qdls_values],
+        'digitStats': {
+            'units': {key: _value_summary_from_list(units_values[key]) for key in UNIT_DIGITS},
+            'tens': {key: _value_summary_from_list(tens_values[key]) for key in TEN_DIGITS},
+        },
+        'digitFrequency': {
+            'units': digit_frequency_units,
+            'tens': digit_frequency_tens,
+            'overallUnitsAverage': overall_units_avg,
+            'overallTensAverage': overall_tens_avg,
+        },
+    }
+    return summary
+
+
+def _fetch_dia_da_sorte_results(cur: sqlite3.Cursor) -> list[dict]:
+    rows = cur.execute(
+        '''
+            SELECT
+                concurso,
+                data_sorteio,
+                bola1,
+                bola2,
+                bola3,
+                bola4,
+                bola5,
+                bola6,
+                bola7,
+                mes_da_sorte,
+                ganhadores_7_acertos,
+                pares,
+                impares,
+                nah_n,
+                nah_a,
+                nah_h,
+                max_consec,
+                maior_salto,
+                isoladas,
+                qdls,
+                digit_stats
+            FROM dia_da_sorte_results
+            ORDER BY concurso DESC
+        '''
+    ).fetchall()
+
+    results = []
+    for row in rows:
+        results.append({
+            'concurso': row['concurso'],
+            'dataSorteio': row['data_sorteio'],
+            'bolas': [
+                row['bola1'],
+                row['bola2'],
+                row['bola3'],
+                row['bola4'],
+                row['bola5'],
+                row['bola6'],
+                row['bola7'],
+            ],
+            'mesDaSorte': row['mes_da_sorte'],
+            'ganhadores7Acertos': row['ganhadores_7_acertos'],
+            'pares': row['pares'],
+            'impares': row['impares'],
+            'nahN': row['nah_n'],
+            'nahA': row['nah_a'],
+            'nahH': row['nah_h'],
+            'maxConsec': row['max_consec'],
+            'maiorSalto': row['maior_salto'],
+            'isolatedCount': row['isoladas'],
+            'qdls': _safe_json_loads(row['qdls'], []),
+            'digitStats': _safe_json_loads(row['digit_stats'], {'units': {}, 'tens': {}}),
+        })
+    return results
 
 
 def _build_dia_da_sorte_bets_filters(data: dict) -> tuple[str, tuple[int, ...], int, int]:
@@ -227,79 +437,30 @@ def list_dia_da_sorte():
         return jsonify({'message': 'Database indisponivel'}), 500
     try:
         cur = conn.cursor()
-        total = cur.execute(
-            'SELECT COUNT(*) FROM dia_da_sorte_results'
-        ).fetchone()[0]
         limit = request.args.get('limit', type=int)
-        query = '''
-            SELECT
-                concurso,
-                data_sorteio,
-                bola1,
-                bola2,
-                bola3,
-                bola4,
-                bola5,
-                bola6,
-                bola7,
-                mes_da_sorte,
-                ganhadores_7_acertos,
-                pares,
-                impares,
-                nah_n,
-                nah_a,
-                nah_h,
-                max_consec,
-                maior_salto,
-                isoladas,
-                qdls,
-                digit_stats
-            FROM dia_da_sorte_results
-            ORDER BY concurso DESC
-        '''
-        params = ()
+        all_results = _fetch_dia_da_sorte_results(cur)
+        total = len(all_results)
+        results = all_results
         if limit and limit > 0:
-            query += ' LIMIT ?'
-            params = (limit,)
-        rows = cur.execute(query, params).fetchall()
+            results = all_results[:limit]
+        summary = _compute_dia_da_sorte_summary(all_results)
+        return jsonify({'total': total, 'results': results, 'summary': summary})
+    finally:
+        conn.close()
 
-        def _safe_json_loads(value, fallback):
-            if not value:
-                return fallback
-            try:
-                return json.loads(value)
-            except (TypeError, json.JSONDecodeError):
-                return fallback
 
-        results = [
-            {
-                'concurso': row['concurso'],
-                'dataSorteio': row['data_sorteio'],
-                'bolas': [
-                    row['bola1'],
-                    row['bola2'],
-                    row['bola3'],
-                    row['bola4'],
-                    row['bola5'],
-                    row['bola6'],
-                    row['bola7'],
-                ],
-                'mesDaSorte': row['mes_da_sorte'],
-                'ganhadores7Acertos': row['ganhadores_7_acertos'],
-                'pares': row['pares'],
-                'impares': row['impares'],
-                'nahN': row['nah_n'],
-                'nahA': row['nah_a'],
-                'nahH': row['nah_h'],
-                'maxConsec': row['max_consec'],
-                'maiorSalto': row['maior_salto'],
-                'isolatedCount': row['isoladas'],
-                'qdls': _safe_json_loads(row['qdls'], []),
-                'digitStats': _safe_json_loads(row['digit_stats'], {'units': {}, 'tens': {}}),
-            }
-            for row in rows
-        ]
-        return jsonify({'total': total, 'results': results})
+@app.route('/api/dia-da-sorte/resumo')
+def get_dia_da_sorte_summary():
+    conn = get_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    try:
+        cur = conn.cursor()
+        results = _fetch_dia_da_sorte_results(cur)
+        summary = _compute_dia_da_sorte_summary(results)
+        if summary is None:
+            return jsonify({'message': 'Nenhum resultado encontrado.'}), 404
+        return jsonify(summary)
     finally:
         conn.close()
 
@@ -455,7 +616,7 @@ def save_dia_da_sorte_bets():
         conn.close()
 
 
-@app.route('/api/dia-da-sorte/apostas/salvas')
+@app.route('/api/dia-da-sorte/apostas/salvas', methods=['GET'])
 def list_saved_dia_da_sorte_bets():
     conn = get_write_connection()
     if not conn:
@@ -532,6 +693,73 @@ def list_saved_dia_da_sorte_bets():
         return jsonify({'total': len(results), 'results': results})
     finally:
         conn.close()
+
+
+@app.route('/api/dia-da-sorte/apostas/salvas', methods=['DELETE'])
+def delete_saved_dia_da_sorte_bets():
+    conn = get_write_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    concurso_param = request.args.get('concurso', type=int)
+    data = request.get_json(silent=True) or {}
+    if concurso_param is None:
+        concurso_data = data.get('concurso')
+        if concurso_data is not None:
+            try:
+                concurso_param = int(concurso_data)
+            except (TypeError, ValueError):
+                concurso_param = None
+    try:
+        cur = conn.cursor()
+        _ensure_saved_bets_table(cur)
+        if concurso_param is not None:
+            cur.execute(
+                'DELETE FROM dia_da_sorte_saved_bets WHERE concurso = ?',
+                (concurso_param,),
+            )
+        else:
+            cur.execute('DELETE FROM dia_da_sorte_saved_bets')
+        deleted = cur.rowcount
+        conn.commit()
+        return jsonify({'deleted': deleted, 'concurso': concurso_param})
+    finally:
+        conn.close()
+
+
+@app.route('/api/dia-da-sorte/apostas/enviar', methods=['POST'])
+def enviar_dia_da_sorte_bets():
+    data = request.get_json(silent=True) or {}
+    concurso_param = data.get('concurso')
+    concurso: Optional[int]
+    if concurso_param is not None:
+        try:
+            concurso = int(concurso_param)
+        except (TypeError, ValueError):
+            return jsonify({'message': 'Parametro concurso invalido.'}), 400
+    else:
+        concurso = None
+
+    if not CHECKOUT_SCRIPT.exists():
+        app.logger.warning('Script de checkout nao encontrado em %s', CHECKOUT_SCRIPT)
+        return jsonify({
+            'message': 'Script de checkout nao encontrado. Crie scripts/dia_da_sorte_checkout.py com a automacao.'
+        }), 501
+
+    args = [sys.executable, str(CHECKOUT_SCRIPT)]
+    if concurso is not None:
+        args += ['--concurso', str(concurso)]
+
+    try:
+        subprocess.Popen(args)
+    except Exception as exc:
+        app.logger.exception('Falha ao iniciar script de checkout: %s', exc)
+        return jsonify({'message': 'Falha ao iniciar script de checkout.'}), 500
+
+    return jsonify({
+        'message': 'Script iniciado. Verifique a janela do navegador e finalize manualmente.',
+        'script': str(CHECKOUT_SCRIPT),
+        'concurso': concurso,
+    })
 
 
 @app.route('/api/results')
@@ -1233,8 +1461,8 @@ def update_dia_da_sorte():
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return response
 
 if __name__ == '__main__':

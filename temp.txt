@@ -1,55 +1,10 @@
-﻿import { Injectable } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface DigitStats {
   units: Record<string, number>;
   tens: Record<string, number>;
-}
-
-export type DigitProfile = 'quente' | 'fria' | 'neutra';
-
-export interface ValueSummary {
-  min: number;
-  max: number;
-  mode: number | null;
-}
-
-export interface NahSummary {
-  n: ValueSummary | null;
-  a: ValueSummary | null;
-  h: ValueSummary | null;
-}
-
-export interface DigitSummary {
-  units: Record<string, ValueSummary | null>;
-  tens: Record<string, ValueSummary | null>;
-}
-
-export interface DigitFrequencyEntry {
-  total: number;
-  average: number;
-  profile: DigitProfile;
-}
-
-export interface DigitFrequencySummary {
-  units: Record<string, DigitFrequencyEntry>;
-  tens: Record<string, DigitFrequencyEntry>;
-  overallUnitsAverage: number;
-  overallTensAverage: number;
-}
-
-export interface DiaDaSorteSummary {
-  pares: ValueSummary | null;
-  impares: ValueSummary | null;
-  maxConsec: ValueSummary | null;
-  maiorSalto: ValueSummary | null;
-  ganhadores7: ValueSummary | null;
-  isolatedCount: ValueSummary | null;
-  nah: NahSummary;
-  qdls: (ValueSummary | null)[];
-  digitStats: DigitSummary;
-  digitFrequency: DigitFrequencySummary;
 }
 
 export interface DiaDaSorteResult {
@@ -87,7 +42,6 @@ export interface DiaDaSorteBet {
 export interface DiaDaSorteResponse {
   total: number;
   results: DiaDaSorteResult[];
-  summary?: DiaDaSorteSummary | null;
 }
 
 export interface DiaDaSorteBetsResponse {
@@ -138,12 +92,6 @@ export interface DiaDaSorteDeleteResponse {
   concurso: number | null;
 }
 
-export interface DiaDaSorteCheckoutResponse {
-  message: string;
-  script: string;
-  concurso: number | null;
-}
-
 @Injectable({ providedIn: 'root' })
 export class DiaDaSorteService {
   private readonly API_BASE = 'http://localhost:5000/api/dia-da-sorte';
@@ -164,10 +112,6 @@ export class DiaDaSorteService {
 
   updateResultsAndStats(): Observable<DiaDaSorteUpdateResponse> {
     return this.http.post<DiaDaSorteUpdateResponse>(`${this.API_BASE}/atualizar`, {});
-  }
-
-  getResultsSummary(): Observable<DiaDaSorteSummary> {
-    return this.http.get<DiaDaSorteSummary>(`${this.API_BASE}/resumo`);
   }
 
   getLastResult(): Observable<DiaDaSorteLastResult> {
@@ -192,11 +136,5 @@ export class DiaDaSorteService {
       params = params.set('concurso', String(concurso));
     }
     return this.http.delete<DiaDaSorteDeleteResponse>(`${this.API_BASE}/apostas/salvas`, { params });
-  }
-
-  submitSavedBets(concurso?: number): Observable<DiaDaSorteCheckoutResponse> {
-    return this.http.post<DiaDaSorteCheckoutResponse>(`${this.API_BASE}/apostas/enviar`, {
-      concurso: concurso ?? null
-    });
   }
 }

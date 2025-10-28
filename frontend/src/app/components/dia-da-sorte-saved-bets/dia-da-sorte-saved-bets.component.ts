@@ -18,12 +18,15 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
   bets: DiaDaSorteSavedBet[] = [];
   total = 0;
   loading = false;
+  deleting = false;
+  submitting = false;
   error?: string;
   status?: string;
   concursoFiltro = '';
   aguardandoResultado = 0;
   resumo: SummaryEntry[] = [];
   ordenarPorAcertosDesc = true;
+  private pendingStatusMessage?: string;
 
   constructor(private readonly diaDaSorteService: DiaDaSorteService) {}
 
@@ -32,7 +35,7 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
   }
 
   loadSavedBets(): void {
-    if (this.loading) {
+    if (this.loading || this.submitting) {
       return;
     }
     this.loading = true;
@@ -51,7 +54,10 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
         this.total = response.total;
         this.computeSummary();
         this.loading = false;
-        if (response.total === 0) {
+        if (this.pendingStatusMessage) {
+          this.status = this.pendingStatusMessage;
+          this.pendingStatusMessage = undefined;
+        } else if (response.total === 0) {
           this.status = 'Nenhuma aposta armazenada para o filtro informado.';
         }
       },
@@ -59,6 +65,7 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
         console.error('Falha ao carregar apostas salvas', err);
         this.error = 'Falha ao carregar apostas salvas.';
         this.loading = false;
+        this.pendingStatusMessage = undefined;
       }
     });
   }
@@ -93,6 +100,41 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
   toggleSortByHits(): void {
     this.ordenarPorAcertosDesc = !this.ordenarPorAcertosDesc;
     this.applySorting();
+  }
+
+  deleteSavedBets(): void {
+    if (this.loading || this.deleting || this.submitting) {
+      return;
+    }
+    const concurso = this.parseConcurso(this.concursoFiltro);
+    const mensagemAlvo = concurso
+      ? `Excluir todas as apostas do concurso ${concurso}?`
+      : 'Excluir todas as apostas salvas?';
+    const confirmado = typeof window !== 'undefined' ? window.confirm(mensagemAlvo) : true;
+    if (!confirmado) {
+      return;
+    }
+    this.deleting = true;
+    this.error = undefined;
+    const alvo = concurso ?? null;
+    this.diaDaSorteService.deleteSavedBets(concurso).subscribe({
+      next: (response) => {
+        const deleted = response.deleted ?? 0;
+        const alvoConcurso = response.concurso ?? alvo;
+        const message =
+          deleted > 0
+            ? `Excluidas ${deleted} aposta(s)${alvoConcurso ? ` do concurso ${alvoConcurso}` : ''}.`
+            : `Nenhuma aposta excluida${alvoConcurso ? ` para o concurso ${alvoConcurso}` : ''}.`;
+        this.pendingStatusMessage = message;
+        this.deleting = false;
+        this.loadSavedBets();
+      },
+      error: (err) => {
+        console.error('Falha ao excluir apostas salvas', err);
+        this.error = 'Falha ao excluir apostas salvas.';
+        this.deleting = false;
+      }
+    });
   }
 
   private applySorting(): void {
@@ -134,5 +176,26 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
     }
     const num = Number(trimmed);
     return Number.isFinite(num) ? num : undefined;
+  }
+
+  submitBetsOnline(): void {
+    if (this.loading || this.deleting || this.submitting) {
+      return;
+    }
+    const concurso = this.parseConcurso(this.concursoFiltro);
+    this.submitting = true;
+    this.error = undefined;
+    this.status = undefined;
+    this.diaDaSorteService.submitSavedBets(concurso).subscribe({
+      next: (response) => {
+        this.status = response.message;
+        this.submitting = false;
+      },
+      error: (err) => {
+        console.error('Falha ao iniciar envio automatico de apostas', err);
+        this.error = 'Falha ao iniciar envio automatico de apostas.';
+        this.submitting = false;
+      }
+    });
   }
 }
