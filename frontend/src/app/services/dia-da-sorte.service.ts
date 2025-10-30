@@ -194,9 +194,14 @@ export class DiaDaSorteService {
     return this.http.delete<DiaDaSorteDeleteResponse>(`${this.API_BASE}/apostas/salvas`, { params });
   }
 
-  submitSavedBets(concurso?: number): Observable<DiaDaSorteCheckoutResponse> {
-    return this.http.post<DiaDaSorteCheckoutResponse>(`${this.API_BASE}/apostas/enviar`, {
-      concurso: concurso ?? null
-    });
+  submitSavedBets(concurso?: number, limit?: number, shuffle: boolean = true): Observable<DiaDaSorteCheckoutResponse> {
+    const body: any = { concurso: concurso ?? null };
+    if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+      body.limit = Math.floor(limit);
+      body.shuffle = !!shuffle;
+    } else if (shuffle) {
+      body.shuffle = true;
+    }
+    return this.http.post<DiaDaSorteCheckoutResponse>(`${this.API_BASE}/apostas/enviar`, body);
   }
 }

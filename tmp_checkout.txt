@@ -1,13 +1,13 @@
 """
 Script placeholder para automatizar apostas do Dia da Sorte.
 
-Este script nÃƒÂ£o executa a automaÃƒÂ§ÃƒÂ£o real. Ele apenas demonstra onde vocÃƒÂª deve
-inserir a lÃƒÂ³gica de automaÃƒÂ§ÃƒÂ£o (por exemplo, utilizando Selenium) para enviar as
+Este script não executa a automação real. Ele apenas demonstra onde você deve
+inserir a lógica de automação (por exemplo, utilizando Selenium) para enviar as
 apostas salvas no banco `dia_da_sorte_saved_bets` para o site oficial das Loterias.
 
-InstruÃƒÂ§ÃƒÂµes:
-1. Instale as dependÃƒÂªncias necessÃƒÂ¡rias (ex.: selenium).
-2. Implemente a funÃƒÂ§ÃƒÂ£o `enviar_apostas` com a automaÃƒÂ§ÃƒÂ£o desejada.
+Instruções:
+1. Instale as dependências necessárias (ex.: selenium).
+2. Implemente a função `enviar_apostas` com a automação desejada.
 3. Execute este script manualmente ou via endpoint `/api/dia-da-sorte/apostas/enviar`.
 """
 
@@ -17,8 +17,8 @@ import argparse
 import sqlite3
 import time
 from pathlib import Path
+from typing import Iterable, Optional
 
-import random
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
@@ -29,7 +29,7 @@ from selenium.common.exceptions import ElementClickInterceptedException, Timeout
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DB_PATH = ROOT_DIR / "database" / "lotofacil.db"
 
-# Ajuste estes valores conforme necessÃƒÂ¡rio
+# Ajuste estes valores conforme necessário
 BASE_URL = "https://www.loteriasonline.caixa.gov.br/silce-web/#/termos-de-uso"
 LOTERIAS_URL = f"{BASE_URL}/silce-web/#/dia-de-sorte"
 # Seletores observados no arquivo Loterias-Dia-da-Sorte.side
@@ -90,11 +90,6 @@ def criar_driver() -> webdriver.Chrome:
     if PROFILE_PATH:
         options.add_argument(f"user-data-dir={PROFILE_PATH}")
     options.add_argument("--start-maximized")
-    # Mantem a janela do Chrome aberta mesmo apos o termino do script
-    try:
-        options.add_experimental_option("detach", True)
-    except Exception:
-        pass
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(5)
     return driver
@@ -102,7 +97,7 @@ def criar_driver() -> webdriver.Chrome:
 
 def selecionar_dezena(driver: webdriver.Chrome, dezena: int, wait: WebDriverWait) -> None:
     """
-    Seleciona a dezena usando o padrÃƒÂ£o de IDs (#n01, #n02, ...).
+    Seleciona a dezena usando o padrão de IDs (#n01, #n02, ...).
     """
     seletor = SELECTOR_DEZENA.format(num=dezena)
     attempts = 0
@@ -124,7 +119,7 @@ def selecionar_dezena(driver: webdriver.Chrome, dezena: int, wait: WebDriverWait
                 """
             )
             time.sleep(0.5)
-    raise TimeoutException(f"NÃƒÂ£o foi possÃƒÂ­vel clicar na dezena {dezena:02d}")
+    raise TimeoutException(f"Não foi possível clicar na dezena {dezena:02d}")
 
 
 def adicionar_aposta_ao_carrinho(driver: webdriver.Chrome, wait: WebDriverWait) -> None:
@@ -139,12 +134,12 @@ def adicionar_aposta_ao_carrinho(driver: webdriver.Chrome, wait: WebDriverWait) 
 
 def preparar_nova_aposta(driver: webdriver.Chrome, wait: WebDriverWait) -> None:
     """
-    Garante que o volante do Dia da Sorte esteja visÃƒÂ­vel.
+    Garante que o volante do Dia da Sorte esteja visível.
     """
     try:
         wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "#carrossel_diadesorte")))
     except Exception:
-        pass  # se nÃƒÂ£o houver esse elemento, continue normalmente
+        pass  # se não houver esse elemento, continue normalmente
 
 
 def selecionar_mes_sorte(driver: webdriver.Chrome, wait: WebDriverWait, indice: int = MES_SORTE_PADRAO) -> None:
@@ -167,7 +162,7 @@ def selecionar_mes_sorte(driver: webdriver.Chrome, wait: WebDriverWait, indice: 
             time.sleep(0.5)
         except TimeoutException:
             attempts += 1
-    raise TimeoutException('NÃƒÂ£o foi possÃƒÂ­vel selecionar o mÃƒÂªs da sorte.')
+    raise TimeoutException('Não foi possível selecionar o mês da sorte.')
 
 
 def enviar_apostas(apostas: Iterable[dict]) -> None:
@@ -182,11 +177,11 @@ def enviar_apostas(apostas: Iterable[dict]) -> None:
         wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, SELECTOR_LINK_DIA_DA_SORTE))).click()
         wait.until(EC.url_contains("/dia-de-sorte"))
     except Exception:
-        # Caso o link nÃƒÂ£o esteja visÃƒÂ­vel, tente navegar diretamente
+        # Caso o link não esteja visível, tente navegar diretamente
         driver.get(LOTERIAS_URL)
         wait.until(EC.url_contains("/dia-de-sorte"))
 
-    print("Certifique-se de estar logado manualmente se necessÃƒÂ¡rio.")
+    print("Certifique-se de estar logado manualmente se necessário.")
     time.sleep(5)
 
     for indice, aposta in enumerate(apostas, start=1):
@@ -199,12 +194,12 @@ def enviar_apostas(apostas: Iterable[dict]) -> None:
 
         selecionar_mes_sorte(driver, wait, MES_SORTE_PADRAO)
         adicionar_aposta_ao_carrinho(driver, wait)
-        time.sleep(3)  # pausa breve para evitar detecÃƒÂ§ÃƒÂ£o como bot
+        time.sleep(3)  # pausa breve para evitar detecção como bot
 
     print("Apostas adicionadas. Abra o carrinho e finalize manualmente.")
     
-    # input("Pressione Enter para fechar o navegador apÃƒÂ³s revisar o carrinho...")
-    # nÃƒÂ£o fechar pois a sessÃƒÂ£o nÃƒÂ£o estÃƒÂ¡ sendo salva! 
+    # input("Pressione Enter para fechar o navegador após revisar o carrinho...")
+    # não fechar pois a sessão não está sendo salva! 
     # driver.quit()
 
 def tentar_clique(driver: webdriver.Chrome, selectors: list[str], timeout: int = 5) -> bool:
@@ -234,12 +229,9 @@ def aceitar_termos(driver: webdriver.Chrome) -> None:
 def aceitar_cookies(driver: webdriver.Chrome) -> None:
     tentar_clique(driver, COOKIE_SELECTORS)
 
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Enviar apostas do Dia da Sorte para o site oficial.")
-    parser.add_argument("--concurso", type=int, help="Numero do concurso para filtrar as apostas.")
-    parser.add_argument("--limit", type=int, default=None, help="Quantidade de apostas a enviar (amostra aleatoria).")
-    parser.add_argument("--shuffle", action="store_true", help="Embaralhar/amostrar apostas aleatoriamente.")
+    parser.add_argument("--concurso", type=int, help="Número do concurso para filtrar as apostas.")
     args = parser.parse_args()
 
     apostas = carregar_apostas(args.concurso)
@@ -247,17 +239,12 @@ def main() -> None:
         print("Nenhuma aposta encontrada para o filtro informado.")
         return
 
-    if args.limit is not None and args.limit > 0:
-        k = min(args.limit, len(apostas))
-        apostas = random.sample(apostas, k)
-    elif args.shuffle:
-        random.shuffle(apostas)
-
     try:
         enviar_apostas(apostas)
     except Exception as exc:
-        print("Falha ao executar automacao Selenium:", exc)
+        print("Falha ao executar automação Selenium:", exc)
 
 
 if __name__ == "__main__":
     main()
+

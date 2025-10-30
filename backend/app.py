@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+﻿from flask import Flask, jsonify, request
 import sqlite3
 import json 
 import csv
@@ -730,6 +730,8 @@ def delete_saved_dia_da_sorte_bets():
 def enviar_dia_da_sorte_bets():
     data = request.get_json(silent=True) or {}
     concurso_param = data.get('concurso')
+    limit_param = data.get('limit')
+    shuffle_param = data.get('shuffle')
     concurso: Optional[int]
     if concurso_param is not None:
         try:
@@ -738,6 +740,23 @@ def enviar_dia_da_sorte_bets():
             return jsonify({'message': 'Parametro concurso invalido.'}), 400
     else:
         concurso = None
+
+    limit: Optional[int]
+    if limit_param is not None:
+        try:
+            limit = int(limit_param)
+            if limit <= 0:
+                limit = None
+        except (TypeError, ValueError):
+            return jsonify({'message': 'Parametro limit invalido.'}), 400
+    else:
+        limit = None
+
+    shuffle_flag = False
+    if isinstance(shuffle_param, bool):
+        shuffle_flag = shuffle_param
+    elif isinstance(shuffle_param, str):
+        shuffle_flag = shuffle_param.lower() in ('1', 'true', 'yes', 'y', 'sim')
 
     if not CHECKOUT_SCRIPT.exists():
         app.logger.warning('Script de checkout nao encontrado em %s', CHECKOUT_SCRIPT)
@@ -748,6 +767,13 @@ def enviar_dia_da_sorte_bets():
     args = [sys.executable, str(CHECKOUT_SCRIPT)]
     if concurso is not None:
         args += ['--concurso', str(concurso)]
+    if limit is not None:
+        args += ['--limit', str(limit)]
+        # default to shuffle when limiting sample unless explicitly false
+        if shuffle_flag:
+            args += ['--shuffle']
+    elif shuffle_flag:
+        args += ['--shuffle']
 
     try:
         subprocess.Popen(args)
@@ -759,6 +785,8 @@ def enviar_dia_da_sorte_bets():
         'message': 'Script iniciado. Verifique a janela do navegador e finalize manualmente.',
         'script': str(CHECKOUT_SCRIPT),
         'concurso': concurso,
+        'limit': limit,
+        'shuffle': shuffle_flag,
     })
 
 
@@ -780,7 +808,7 @@ def list_results():
     impares_param = request.args.get('impares', '')
     pares = _parse_int_list(request.args.getlist('pares') or [pares_param])
     impares = _parse_int_list(request.args.getlist('impares') or [impares_param])
-    # Default Par/Ímpar as in notebook if none provided
+    # Default Par/Ãmpar as in notebook if none provided
     if not pares and not impares:
         pares = {6, 7, 8}
         impares = {7, 8, 9}
@@ -935,18 +963,18 @@ def list_apostas():
 def selecionar_por_filtros():
     """Replica aproximada do pipeline de 12 filtros do notebook.
 
-    Parâmetros (query):
-      - cutoff: concurso base (usa histórico até ele e calcula NAH para ele)
+    ParÃ¢metros (query):
+      - cutoff: concurso base (usa histÃ³rico atÃ© ele e calcula NAH para ele)
       - aplicarCRE (bool, default true): aplica countCRE < 2
       - aplicarSalto (bool, default true): aplica maiorSalto in [3,4]
       - colMin, colMax: vetores de 5 inteiros (ex: "2,1,1,1,1" e "5,5,4,5,5")
-      - aplicarNAH (bool, default true): usa variações em torno do NAH base
-      - nahVar (int, default 2): variação +- para N/A/H
+      - aplicarNAH (bool, default true): usa variaÃ§Ãµes em torno do NAH base
+      - nahVar (int, default 2): variaÃ§Ã£o +- para N/A/H
       - aplicarABCD (bool, default true): usa combFreq com min/max defaults
       - abcdMin, abcdMax: vetores de 4 inteiros
-      - aplicarNo3Consec (bool, default true): remove apostas com sequências de 3+
+      - aplicarNo3Consec (bool, default true): remove apostas com sequÃªncias de 3+
       - pares, impares: filtros opcionais (contagem permitida)
-      - limit: máximo de apostas retornadas (default 200)
+      - limit: mÃ¡ximo de apostas retornadas (default 200)
     """
     from filters import FiltroDezenasParesImpares
     from selector import compute_number_frequencies
@@ -994,7 +1022,7 @@ def selecionar_por_filtros():
     nah_var = request.args.get('nahVar', default=2, type=int)
     aplicar_abcd = _bool('aplicarABCD', True)
     aplicar_tres = _bool('aplicarTresConsec', True)
-    # new filters 7–11
+    # new filters 7â€“11
     aplicar_bola_vez = _bool('aplicarBolaVez', False)
     aplicar_losango = _bool('aplicarLosangoCentro', False)
     aplicar_onze_quinze = _bool('aplicarOnzeQuinze', False)
@@ -1066,7 +1094,7 @@ def selecionar_por_filtros():
     hist = cur.fetchall()
     conn.close()
     if len(hist) < 3:
-        return jsonify({'error': 'histórico insuficiente para NAH'}), 400
+        return jsonify({'error': 'histÃ³rico insuficiente para NAH'}), 400
 
     # Build frequency groups from historical results
     freqs = compute_number_frequencies(hist)
@@ -1174,14 +1202,14 @@ def selecionar_por_filtros():
 
 @app.route('/api/selecionar')
 def selecionar_apostas():
-    """Heurística de seleção de apostas: score + diversidade (Jaccard).
+    """HeurÃ­stica de seleÃ§Ã£o de apostas: score + diversidade (Jaccard).
 
-    Parâmetros (query):
+    ParÃ¢metros (query):
       - k: quantidade de apostas a selecionar (default: 50)
       - pool: tamanho do pool top-N por score para diversidade (default: 200)
-      - freqJanela: janela dos últimos N concursos para frequência histórica (default: None=todo histórico)
+      - freqJanela: janela dos Ãºltimos N concursos para frequÃªncia histÃ³rica (default: None=todo histÃ³rico)
       - weights: wFreq, wSeq3, wJump, wPar (ex.: wFreq=1.0, wSeq3=-0.7, wJump=-0.4, wPar=-0.3)
-      - pares/impares: filtros opcionais iguais aos já usados
+      - pares/impares: filtros opcionais iguais aos jÃ¡ usados
     """
     from filters import FiltroDezenasParesImpares
     from selector import compute_number_frequencies, score_bet, select_diverse
@@ -1298,8 +1326,8 @@ def conferir_selecao():
     bets = data.get('bets') or []
     opts = data.get('options') or {}
     if not isinstance(cutoff, int):
-        return jsonify({'error': 'cutoff inválido'}), 400
-    # Buscar próximo concurso (cutoff + 1)
+        return jsonify({'error': 'cutoff invÃ¡lido'}), 400
+    # Buscar prÃ³ximo concurso (cutoff + 1)
     conn = get_connection()
     if conn is None:
         return jsonify({'error': 'lotofacil.db not found'}), 500
@@ -1316,7 +1344,7 @@ def conferir_selecao():
     hist_rows = cur2.fetchall()
     conn.close()
     if row is None:
-        return jsonify({'message': 'Resultado seguinte não encontrado', 'nextConcurso': cutoff + 1, 'results': []}), 404
+        return jsonify({'message': 'Resultado seguinte nÃ£o encontrado', 'nextConcurso': cutoff + 1, 'results': []}), 404
     next_dezenas = [row[f'n{i}'] for i in range(1, 16)]
     s_next = set(next_dezenas)
     # compute classifications
@@ -1467,6 +1495,7 @@ def add_cors_headers(response):
 
 if __name__ == '__main__':
     app.run()
+
 
 
 

@@ -183,10 +183,27 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
       return;
     }
     const concurso = this.parseConcurso(this.concursoFiltro);
+    // Pergunta quantas apostas enviar
+    let quantidade: number | undefined;
+    if (typeof window !== 'undefined') {
+      const sugestao = this.total > 0 ? Math.min(this.total, 1000) : 1000;
+      const entrada = window.prompt('Quantas apostas deseja enviar agora?', String(sugestao));
+      if (entrada == null) {
+        return; // cancelado
+      }
+      const num = Number(entrada.trim());
+      if (Number.isFinite(num) && num > 0) {
+        quantidade = Math.floor(num);
+      } else {
+        // entrada invalida
+        this.status = 'Quantidade invalida. Operacao cancelada.';
+        return;
+      }
+    }
     this.submitting = true;
     this.error = undefined;
     this.status = undefined;
-    this.diaDaSorteService.submitSavedBets(concurso).subscribe({
+    this.diaDaSorteService.submitSavedBets(concurso, quantidade, true).subscribe({
       next: (response) => {
         this.status = response.message;
         this.submitting = false;
