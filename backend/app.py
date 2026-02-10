@@ -323,6 +323,10 @@ def _build_dia_da_sorte_bets_filters(data: dict) -> tuple[str, tuple[int, ...], 
         max_val = units_max[idx] if idx < len(units_max) else None
         _add_range(min_val, max_val, column)
 
+    unit_pairs_expr = ' + '.join([f'CAST(unit_{idx} / 2 AS INT)' for idx in range(10)])
+    unit_pairs_expr = f'({unit_pairs_expr})'
+    _add_range(data.get('unitPairsMin'), data.get('unitPairsMax'), unit_pairs_expr)
+
     tens_min = data.get('tensMin') or []
     tens_max = data.get('tensMax') or []
     for idx in range(4):
