@@ -13,6 +13,10 @@ export class SelectorByFiltersComponent {
   aplicarSalto = true;
   aplicarNAH = true;
   nahVar = 2;
+  nahList = '';
+  nahListApplied: number[][] = [];
+  nahListProvided = false;
+  nahListInvalid = false;
   aplicarABCD = true;
   aplicarTresConsec = true;
   colMin = '2,1,1,1,1';
@@ -23,6 +27,20 @@ export class SelectorByFiltersComponent {
   pares = '6,7,8';
   impares = '7,8,9';
   limit = 200;
+  selectionMode = 'random';
+  selectionSeed = '';
+  selectionModeApplied = '';
+  selectionSeedApplied: number | null = null;
+  selectionModeLabels: { [key: string]: string } = {
+    random: 'Aleatória',
+    diversidade: 'Diversidade (Jaccard)',
+    estratificada: 'Estratificada (grupos)',
+    distantes: 'Distantes (ID base)',
+    primeiras: 'Primeiras (ordem da base)'
+  };
+  saving = false;
+  saveStatus = '';
+  saveError = '';
 
   // Outputs
   totalBase = 0;
@@ -30,7 +48,7 @@ export class SelectorByFiltersComponent {
   nahBase: [number, number, number] | null = null;
   nahAllowed: [number, number, number][] = [];
   nahAllowedTooltip = '';
-  items: { dezenas: number[]; qtdPares: number; qtdImpares: number; acertos?: number }[] = [];
+  items: { dezenas: number[]; qtdPares: number; qtdImpares: number; nahN?: number; nahA?: number; nahH?: number; acertos?: number }[] = [];
   nextConcurso?: number;
   nextDezenas: number[] = [];
   nextInfo?: { qtdPares: number; qtdImpares: number; maiorSalto: number; maiorConsecutivas: number; countC: number[]; abcdCounts: number[] } | null;
@@ -50,13 +68,18 @@ export class SelectorByFiltersComponent {
     const colMaxArr = this.colMax.split(',').map(v => parseInt(v.trim(), 10));
     const abcdMinArr = this.abcdMin.split(',').map(v => parseInt(v.trim(), 10));
     const abcdMaxArr = this.abcdMax.split(',').map(v => parseInt(v.trim(), 10));
+    const seedValRaw = this.selectionSeed.trim();
+    const seedVal = seedValRaw ? parseInt(seedValRaw, 10) : undefined;
+    const selectionSeed = Number.isNaN(seedVal) ? undefined : seedVal;
+    const nahList = this.nahList.trim();
+    const aplicarNAHEfetivo = this.aplicarNAH || !!nahList;
     this.loading = true;
     this.resultsService.getFilterSelection({
       cutoff: cutoffVal,
       aplicarPI: this.useParImpar,
       aplicarCRE: this.aplicarCRE,
       aplicarSalto: this.aplicarSalto,
-      aplicarNAH: this.aplicarNAH,
+      aplicarNAH: aplicarNAHEfetivo,
       nahVar: this.nahVar,
       aplicarABCD: this.aplicarABCD,
       aplicarTresConsec: this.aplicarTresConsec,
@@ -66,18 +89,59 @@ export class SelectorByFiltersComponent {
       abcdMax: abcdMaxArr,
       pares,
       impares,
-      limit: this.limit
+      limit: this.limit,
+      selectionMode: this.selectionMode,
+      selectionSeed,
+      nahList: nahList || undefined
     }).subscribe(res => {
       this.totalBase = res.totalBase;
       this.totalFiltrado = res.totalFiltrado;
       this.nahBase = res.nahBase;
       this.nahAllowed = res.nahAllowed || [];
       this.nahAllowedTooltip = this.nahAllowed.map(n => n.join('/')).join('; ');
+      this.nahListApplied = res.nahList || [];
+      this.nahListProvided = !!res.nahListProvided;
+      this.nahListInvalid = this.nahListProvided && this.nahListApplied.length === 0;
       this.items = res.results;
       this.nextConcurso = undefined;
       this.nextDezenas = [];
+      this.selectionModeApplied = res.selectionMode || this.selectionMode;
+      this.selectionSeedApplied = res.selectionSeed ?? (selectionSeed ?? null);
       this.loading = false;
     }, _ => { this.loading = false; });
+  }
+
+  saveBets(): void {
+    const cutoffVal = parseInt(this.cutoff, 10);
+    if (isNaN(cutoffVal)) {
+      this.saveError = 'Informe um cutoff valido antes de salvar.';
+      return;
+    }
+    if (!this.items.length) {
+      this.saveError = 'Nao ha apostas para salvar.';
+      return;
+    }
+    if (this.saving) {
+      return;
+    }
+    this.saving = true;
+    this.saveStatus = 'Salvando apostas...';
+    this.saveError = '';
+    const bets = this.items.map(it => it.dezenas);
+    this.resultsService.saveLotofacilBets(cutoffVal, bets).subscribe({
+      next: (res) => {
+        const inserted = res.inserted ?? 0;
+        const already = res.alreadySaved ?? 0;
+        const invalid = res.invalid ?? 0;
+        this.saveStatus = `Salvas: ${inserted}, ja existentes: ${already}` + (invalid ? `, invalidas: ${invalid}` : '');
+        this.saving = false;
+      },
+      error: () => {
+        this.saveError = 'Falha ao salvar apostas.';
+        this.saveStatus = '';
+        this.saving = false;
+      }
+    });
   }
 
   check(): void {

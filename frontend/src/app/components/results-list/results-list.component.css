@@ -10,9 +10,17 @@
   border: 1px solid #555;
  }
 
- .record-count {
+.record-count {
   margin: 10px 0;
- }
+}
+
+.status {
+  margin: 6px 0;
+}
+
+.status.error {
+  color: #ff6666;
+}
 
  table {
   width: 100%;

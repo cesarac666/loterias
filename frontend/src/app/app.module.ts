@@ -14,6 +14,7 @@ import { DiaDaSorteListComponent } from './components/dia-da-sorte-list/dia-da-s
 import { DiaDaSorteTicketComponent } from './components/dia-da-sorte-ticket/dia-da-sorte-ticket.component';
 import { DiaDaSorteBetsComponent } from './components/dia-da-sorte-bets/dia-da-sorte-bets.component';
 import { DiaDaSorteSavedBetsComponent } from './components/dia-da-sorte-saved-bets/dia-da-sorte-saved-bets.component';
+import { LotofacilSavedBetsComponent } from './components/lotofacil-saved-bets/lotofacil-saved-bets.component';
 
 @NgModule({
   declarations: [
@@ -25,7 +26,8 @@ import { DiaDaSorteSavedBetsComponent } from './components/dia-da-sorte-saved-be
     DiaDaSorteListComponent,
     DiaDaSorteTicketComponent,
     DiaDaSorteBetsComponent,
-    DiaDaSorteSavedBetsComponent
+    DiaDaSorteSavedBetsComponent,
+    LotofacilSavedBetsComponent
   ],
   imports: [
     BrowserModule,

@@ -5,3 +5,73 @@ input { margin-right: 8px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { border: 1px solid #444; padding: 4px 6px; }
 .record-count { margin: 10px 0; }
+
+button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1200;
+}
+
+.loading-dialog {
+  min-width: 280px;
+  max-width: 420px;
+  width: 90%;
+  background: #111;
+  color: #fff;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 16px 18px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.loading-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.loading-subtitle {
+  font-size: 12px;
+  color: #bdbdbd;
+  margin-top: 8px;
+}
+
+.progress-bar {
+  position: relative;
+  height: 8px;
+  width: 100%;
+  background: #2a2a2a;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, #4caf50, transparent);
+  transform: translateX(-100%);
+  animation: selector-filters-progress 1.2s ease-in-out infinite;
+}
+
+@keyframes selector-filters-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

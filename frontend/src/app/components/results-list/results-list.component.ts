@@ -21,6 +21,15 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
   nahH = '';
   displayCount = 10;
   totalRegistros = 0;
+  updating = false;
+  updateMessage = '';
+  updateError = '';
+  nahTransitionCurrent: number[] | null = null;
+  nahTransitionSummary: { nah: number[]; count: number }[] = [];
+  nahTransitionTotal = 0;
+  nahTransitionPairs: { ccCurrent: number; ccNext: number; currentNah: number[]; nextNah: number[] }[] = [];
+  nahTransitionLimit = 22;
+  nahTransitionPairsLimit = 50;
   @ViewChild('patternChart') patternChartCanvas?: ElementRef<HTMLCanvasElement>;
   selectedTicketNumbers: number[] | null = null;
   showPrintPreview = false;
@@ -63,6 +72,10 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
         this.results = r.results.slice(0, cnt);
 
         this.totalRegistros = r.total;
+        this.nahTransitionCurrent = r.nahTransitionCurrent ?? null;
+        this.nahTransitionSummary = r.nahTransitionSummary || [];
+        this.nahTransitionTotal = r.nahTransitionTotal || 0;
+        this.nahTransitionPairs = r.nahTransitionPairs || [];
         this.renderChart();
       });
   }
@@ -93,6 +106,29 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
 
   printAll(): void {
     window.print();
+  }
+
+  updateResults(): void {
+    if (this.updating) {
+      return;
+    }
+    this.updating = true;
+    this.updateMessage = 'Atualizando resultados...';
+    this.updateError = '';
+    this.resultsService.updateLotofacilResults().subscribe({
+      next: (res) => {
+        this.updateMessage = res.message;
+        this.updating = false;
+        if (res.count > 0) {
+          this.loadResults();
+        }
+      },
+      error: () => {
+        this.updateError = 'Falha ao atualizar resultados da Lotofácil.';
+        this.updateMessage = '';
+        this.updating = false;
+      }
+    });
   }
 
 }

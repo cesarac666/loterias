@@ -18,10 +18,59 @@
   <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
   <input type="number" placeholder="Exibir (qtde)" [(ngModel)]="displayCount" min="1" style="width:120px">
   <button (click)="loadResults()">Aplicar</button>
+  <button (click)="updateResults()" [disabled]="updating">{{ updating ? 'Atualizando...' : 'Atualizar' }}</button>
   <button (click)="openPrintPreview()">Imprimir</button>
 </div>
 
 <p class="record-count">Total de registros: {{ totalRegistros }}</p>
+<p *ngIf="updateMessage" class="status">{{ updateMessage }}</p>
+<p *ngIf="updateError" class="status error">{{ updateError }}</p>
+
+<div *ngIf="nahTransitionSummary.length" class="record-count">
+  <strong>Transição NAH (atual → próximo)</strong>
+  <span *ngIf="nahTransitionCurrent?.length">
+    | atual: {{ nahTransitionCurrent[0] }}/{{ nahTransitionCurrent[1] }}/{{ nahTransitionCurrent[2] }}
+  </span>
+  <span *ngIf="nahTransitionTotal"> | base: {{ nahTransitionTotal }}</span>
+</div>
+<table *ngIf="nahTransitionSummary.length">
+  <thead>
+    <tr>
+      <th>NAH próximo</th>
+      <th>Ocorrências</th>
+      <th>%</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let item of nahTransitionSummary | slice:0:nahTransitionLimit">
+      <td>{{ item.nah[0] }}/{{ item.nah[1] }}/{{ item.nah[2] }}</td>
+      <td>{{ item.count }}</td>
+      <td>{{ (nahTransitionTotal ? (item.count / nahTransitionTotal * 100) : 0) | number:'1.0-1' }}%</td>
+    </tr>
+  </tbody>
+</table>
+
+<div *ngIf="nahTransitionPairs.length" class="record-count">
+  <strong>Exemplos (concurso atual → próximo)</strong>
+</div>
+<table *ngIf="nahTransitionPairs.length">
+  <thead>
+    <tr>
+      <th>CC atual</th>
+      <th>CC próximo</th>
+      <th>NAH atual</th>
+      <th>NAH próximo</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let item of nahTransitionPairs | slice:0:nahTransitionPairsLimit">
+      <td>{{ item.ccCurrent }}</td>
+      <td>{{ item.ccNext }}</td>
+      <td>{{ item.currentNah[0] }}/{{ item.currentNah[1] }}/{{ item.currentNah[2] }}</td>
+      <td>{{ item.nextNah[0] }}/{{ item.nextNah[1] }}/{{ item.nextNah[2] }}</td>
+    </tr>
+  </tbody>
+</table>
 
 <h2>Últimos 10 resultados</h2>
 <table>

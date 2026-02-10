@@ -1,5 +1,5 @@
 <div class="saved-bets-page">
-  <h2>Conferencia de apostas salvas</h2>
+  <h2>Conferencia de apostas salvas (Lotofácil)</h2>
 
   <form class="controls" (ngSubmit)="loadSavedBets()">
     <label for="concursoFiltro">Filtrar por concurso:</label>
@@ -37,7 +37,7 @@
       type="button"
       class="sort-button"
       (click)="toggleSortByHits()"
-      [disabled]="loading || deleting || submitting || !bets.length"
+      [disabled]="loading || deleting || !bets.length"
     >
       Ordenar por acertos {{ ordenarPorAcertosDesc ? '(desc)' : '(asc)' }}
     </button>
@@ -62,7 +62,7 @@
         <td>{{ bet.dezenas.join(', ') }}</td>
         <td>{{ formatResultado(bet) }}</td>
         <td>{{ formatAcertos(bet) }}</td>
-        <td>{{ bet.acertosRegistrados }}</td>
+        <td>{{ bet.registradoEm || '-' }}</td>
         <td>{{ bet.createdAt }}</td>
       </tr>
     </tbody>

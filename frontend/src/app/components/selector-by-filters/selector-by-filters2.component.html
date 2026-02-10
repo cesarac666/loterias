@@ -9,7 +9,14 @@
     <label><input type="checkbox" [(ngModel)]="aplicarCRE"> CRE &lt; 2</label>
     <label><input type="checkbox" [(ngModel)]="aplicarSalto"> Salto 3/4</label>
     <label><input type="checkbox" [(ngModel)]="aplicarNAH"> NAH var</label>
-    <input type="number" [(ngModel)]="nahVar" min="0" style="width:80px" title="Variação NAH (±)">
+    <input
+      type="number"
+      [(ngModel)]="nahVar"
+      min="0"
+      style="width:80px"
+      title="Variação NAH (±)"
+      [disabled]="nahList.trim()"
+    >
     <label><input type="checkbox" [(ngModel)]="aplicarABCD"> ABCD</label>
     <label><input type="checkbox" [(ngModel)]="aplicarTresConsec"> 3 consecutivos na linha</label>
   </div>
@@ -21,9 +28,22 @@
   </div>
   <div>
     <label>ABCD min:</label>
-    <input type="text" [(ngModel)]="abcdMin" placeholder="0,2,4,0">
+    <input type="text" [(ngModel)]="abcdMin" placeholder="0,2,4,0" [disabled]="!aplicarABCD">
     <label>ABCD max:</label>
-    <input type="text" [(ngModel)]="abcdMax" placeholder="3,8,10,5">
+    <input type="text" [(ngModel)]="abcdMax" placeholder="3,8,10,5" [disabled]="!aplicarABCD">
+  </div>
+  <div>
+    <label>NAH lista:</label>
+    <input
+      type="text"
+      [(ngModel)]="nahList"
+      placeholder="ex: 7,4,4;6,4,5"
+      style="width:260px"
+    >
+    <small *ngIf="nahList.trim() && !nahListInvalid">Lista ativa: NAH var ignorado.</small>
+    <small *ngIf="nahListInvalid" style="color:#ff6666;">
+      Lista inválida ou vazia após parse. Use formato "7,4,4;6,4,5".
+    </small>
   </div>
   <div>
     <label><input type="checkbox" [(ngModel)]="useParImpar"> Par/Ímpar</label>
@@ -31,15 +51,47 @@
     <input type="text" [(ngModel)]="impares" placeholder="Ímpares (ex: 7,8,9)" [disabled]="!useParImpar">
     <label>Limit:</label>
     <input type="number" [(ngModel)]="limit" min="1" style="width:80px">
+    <label>Seleção:</label>
+    <select [(ngModel)]="selectionMode">
+      <option value="random">Aleatória</option>
+      <option value="diversidade">Diversidade (Jaccard)</option>
+      <option value="estratificada">Estratificada (grupos)</option>
+      <option value="distantes">Distantes (ID base)</option>
+      <option value="primeiras">Primeiras (ordem da base)</option>
+    </select>
+    <label>Seed:</label>
+    <input type="text" [(ngModel)]="selectionSeed" placeholder="opcional" style="width:90px">
   </div>
   <div>
-    <button (click)="run()" [disabled]="loading">{{ loading ? 'Processando...' : 'Filtrar' }}</button>
+    <button (click)="run()" [disabled]="loading">
+      {{ loading ? 'Processando...' : 'Filtrar' }}
+    </button>
+    <button (click)="saveBets()" [disabled]="saving || loading || !items.length">
+      {{ saving ? 'Salvando...' : 'Salvar apostas' }}
+    </button>
     <button (click)="check()" [disabled]="loading || !cutoff || items.length===0">Conferir próximo</button>
+  </div>
+</div>
+
+<p *ngIf="saveStatus" class="record-count">{{ saveStatus }}</p>
+<p *ngIf="saveError" class="record-count" style="color:#ff6666;">{{ saveError }}</p>
+
+<div *ngIf="loading" class="loading-overlay" role="alert" aria-live="assertive">
+  <div class="loading-dialog" role="dialog" aria-modal="true" aria-label="Carregando">
+    <div class="loading-title">Carregando...</div>
+    <div class="progress-bar" aria-hidden="true">
+      <div class="progress-bar__fill"></div>
+    </div>
+    <div class="loading-subtitle">Aplicando filtros e preparando resultados.</div>
   </div>
 </div>
 
 <p class="record-count">
   Base (após par/ímpar): {{ totalBase }} | Filtradas: {{ totalFiltrado }}
+  <span *ngIf="selectionModeApplied">
+    | Seleção: {{ selectionModeLabels[selectionModeApplied] || selectionModeApplied }}
+    <span *ngIf="selectionSeedApplied !== null"> (seed: {{ selectionSeedApplied }})</span>
+  </span>
   <span *ngIf="nahBase">
     | NAH base: {{ nahBase[0] }}/{{ nahBase[1] }}/{{ nahBase[2] }}
     <span *ngIf="nahAllowed?.length" [title]="nahAllowedTooltip">[variações: {{ nahAllowed.length }}]</span>
@@ -77,6 +129,7 @@
       <th>Dezenas</th>
       <th>Pares</th>
       <th>Ímpares</th>
+      <th>NAH</th>
       <th>Acertos</th>
     </tr>
   </thead>
@@ -86,6 +139,7 @@
       <td>{{ it.dezenas.join(', ') }}</td>
       <td>{{ it.qtdPares }}</td>
       <td>{{ it.qtdImpares }}</td>
+      <td>{{ it.nahN ?? '-' }}/{{ it.nahA ?? '-' }}/{{ it.nahH ?? '-' }}</td>
       <td>{{ it.acertos ?? '-' }}</td>
     </tr>
   </tbody>

@@ -7,6 +7,7 @@ import { SelectorByFiltersComponent } from './components/selector-by-filters/sel
 import { DiaDaSorteListComponent } from './components/dia-da-sorte-list/dia-da-sorte-list.component';
 import { DiaDaSorteBetsComponent } from './components/dia-da-sorte-bets/dia-da-sorte-bets.component';
 import { DiaDaSorteSavedBetsComponent } from './components/dia-da-sorte-saved-bets/dia-da-sorte-saved-bets.component';
+import { LotofacilSavedBetsComponent } from './components/lotofacil-saved-bets/lotofacil-saved-bets.component';
 
 const routes: Routes = [
   { path: '', redirectTo: '/results', pathMatch: 'full' },
@@ -16,7 +17,8 @@ const routes: Routes = [
   { path: 'selecionar-por-filtros', component: SelectorByFiltersComponent },
   { path: 'dia-da-sorte', component: DiaDaSorteListComponent },
  { path: 'dia-da-sorte-apostas', component: DiaDaSorteBetsComponent },
- { path: 'dia-da-sorte-conferencia', component: DiaDaSorteSavedBetsComponent }
+ { path: 'dia-da-sorte-conferencia', component: DiaDaSorteSavedBetsComponent },
+ { path: 'lotofacil-conferencia', component: LotofacilSavedBetsComponent }
 ];
 
 @NgModule({

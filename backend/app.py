@@ -5,6 +5,9 @@ import csv
 import sys
 import logging
 import subprocess
+import math
+import random
+import re
 from collections import Counter, defaultdict
 from logging.handlers import RotatingFileHandler
 from typing import Optional
@@ -16,11 +19,13 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
 from imports.update_diadesorte_results import update_results as update_dia_da_sorte_results
+from imports.update_lotofacil_results import update_results as update_lotofacil_results
 
 app = Flask(__name__)
 DB_PATH = ROOT_DIR / 'database' / 'lotofacil.db'
 LOG_PATH = BASE_DIR / 'app.log'
 CHECKOUT_SCRIPT = ROOT_DIR / 'scripts' / 'dia_da_sorte_checkout.py'
+LOTOFACIL_CHECKOUT_SCRIPT = ROOT_DIR / 'scripts' / 'lotofacil_checkout.py'
 LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 if not app.logger.handlers:
@@ -86,6 +91,45 @@ def _ensure_saved_bets_table(cur: sqlite3.Cursor) -> None:
         ON dia_da_sorte_saved_bets(concurso)
         '''
     )
+
+
+def _ensure_lotofacil_saved_bets_table(cur: sqlite3.Cursor) -> None:
+    cur.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS lotofacil_saved_bets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            concurso INTEGER NOT NULL,
+            n1 INTEGER NOT NULL, n2 INTEGER NOT NULL, n3 INTEGER NOT NULL,
+            n4 INTEGER NOT NULL, n5 INTEGER NOT NULL, n6 INTEGER NOT NULL,
+            n7 INTEGER NOT NULL, n8 INTEGER NOT NULL, n9 INTEGER NOT NULL,
+            n10 INTEGER NOT NULL, n11 INTEGER NOT NULL, n12 INTEGER NOT NULL,
+            n13 INTEGER NOT NULL, n14 INTEGER NOT NULL, n15 INTEGER NOT NULL,
+            acertos INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            registrado_em TEXT
+        )
+        '''
+    )
+    cur.execute(
+        '''
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_lotofacil_saved_bets_unique
+        ON lotofacil_saved_bets(concurso, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15)
+        '''
+    )
+    cur.execute(
+        '''
+        CREATE INDEX IF NOT EXISTS idx_lotofacil_saved_bets_concurso
+        ON lotofacil_saved_bets(concurso)
+        '''
+    )
+
+    # Add column for older databases if missing.
+    try:
+        cols = [row[1] for row in cur.execute("PRAGMA table_info(lotofacil_saved_bets)").fetchall()]
+    except Exception:
+        cols = []
+    if 'registrado_em' not in cols:
+        cur.execute("ALTER TABLE lotofacil_saved_bets ADD COLUMN registrado_em TEXT")
 
 
 UNIT_DIGITS = [str(i) for i in range(10)]
@@ -794,6 +838,258 @@ def enviar_dia_da_sorte_bets():
     })
 
 
+def _normalize_lotofacil_bet(value) -> Optional[list[int]]:
+    try:
+        dezenas = [int(x) for x in value]
+    except Exception:
+        return None
+    dezenas = [d for d in dezenas if 1 <= d <= 25]
+    dezenas = sorted(set(dezenas))
+    if len(dezenas) != 15:
+        return None
+    return dezenas
+
+
+@app.route('/api/lotofacil/apostas/salvar', methods=['POST'])
+def save_lotofacil_bets():
+    conn = get_write_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    data = request.get_json(silent=True) or {}
+    bets = data.get('bets') or []
+    cutoff = data.get('cutoff')
+    concurso = data.get('concurso')
+    try:
+        if concurso is None:
+            concurso = int(cutoff) + 1
+        else:
+            concurso = int(concurso)
+    except (TypeError, ValueError):
+        return jsonify({'message': 'cutoff invalido'}), 400
+
+    if not isinstance(bets, list) or not bets:
+        return jsonify({
+            'nextConcurso': concurso,
+            'totalReceived': 0,
+            'totalValid': 0,
+            'inserted': 0,
+            'alreadySaved': 0,
+            'invalid': 0,
+            'message': 'Nenhuma aposta informada.'
+        })
+
+    try:
+        cur = conn.cursor()
+        _ensure_lotofacil_saved_bets_table(cur)
+
+        insert_sql = '''
+            INSERT OR IGNORE INTO lotofacil_saved_bets (
+                concurso, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, acertos
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        '''
+        batch = []
+        invalid = 0
+        valid = 0
+        initial_changes = conn.total_changes
+        for bet in bets:
+            dezenas = _normalize_lotofacil_bet(bet)
+            if not dezenas:
+                invalid += 1
+                continue
+            valid += 1
+            batch.append((concurso, *dezenas))
+            if len(batch) >= 1000:
+                cur.executemany(insert_sql, batch)
+                batch.clear()
+        if batch:
+            cur.executemany(insert_sql, batch)
+
+        inserted = conn.total_changes - initial_changes
+        already_saved = max(valid - inserted, 0)
+        conn.commit()
+        return jsonify({
+            'nextConcurso': concurso,
+            'totalReceived': len(bets),
+            'totalValid': valid,
+            'inserted': inserted,
+            'alreadySaved': already_saved,
+            'invalid': invalid,
+        })
+    finally:
+        conn.close()
+
+
+@app.route('/api/lotofacil/apostas/salvas', methods=['GET'])
+def list_saved_lotofacil_bets():
+    conn = get_write_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    concurso_param = request.args.get('concurso', type=int)
+    try:
+        cur = conn.cursor()
+        _ensure_lotofacil_saved_bets_table(cur)
+
+        params: list[int] = []
+        where_clause = ''
+        if concurso_param is not None:
+            where_clause = 'WHERE sb.concurso = ?'
+            params.append(concurso_param)
+
+        rows = cur.execute(
+            f'''
+                SELECT
+                    sb.id,
+                    sb.concurso,
+                    sb.n1 AS sb_n1, sb.n2 AS sb_n2, sb.n3 AS sb_n3, sb.n4 AS sb_n4, sb.n5 AS sb_n5,
+                    sb.n6 AS sb_n6, sb.n7 AS sb_n7, sb.n8 AS sb_n8, sb.n9 AS sb_n9, sb.n10 AS sb_n10,
+                    sb.n11 AS sb_n11, sb.n12 AS sb_n12, sb.n13 AS sb_n13, sb.n14 AS sb_n14, sb.n15 AS sb_n15,
+                    sb.acertos,
+                    sb.created_at,
+                    sb.registrado_em,
+                    r.data AS data_sorteio,
+                    r.n1 AS r_n1, r.n2 AS r_n2, r.n3 AS r_n3, r.n4 AS r_n4, r.n5 AS r_n5,
+                    r.n6 AS r_n6, r.n7 AS r_n7, r.n8 AS r_n8, r.n9 AS r_n9, r.n10 AS r_n10,
+                    r.n11 AS r_n11, r.n12 AS r_n12, r.n13 AS r_n13, r.n14 AS r_n14, r.n15 AS r_n15
+                FROM lotofacil_saved_bets sb
+                LEFT JOIN results r ON r.concurso = sb.concurso
+                {where_clause}
+                ORDER BY sb.concurso DESC, sb.id ASC
+            ''',
+            tuple(params),
+        ).fetchall()
+
+        updates: list[tuple[int, int]] = []
+        results = []
+        for row in rows:
+            dezenas = [row[f'sb_n{i}'] for i in range(1, 16)]
+            resultado = None
+            calculado = None
+
+            if row['data_sorteio'] is not None and row['r_n1'] is not None:
+                resultado = [row[f'r_n{i}'] for i in range(1, 16)]
+                calculado = len(set(dezenas) & set(resultado))
+                if calculado != row['acertos']:
+                    updates.append((calculado, row['id']))
+
+            results.append({
+                'id': row['id'],
+                'concurso': row['concurso'],
+                'dezenas': dezenas,
+                'acertos': calculado if calculado is not None else None,
+                'acertosRegistrados': row['acertos'],
+                'resultadoDisponivel': calculado is not None,
+                'resultado': resultado,
+                'dataSorteio': row['data_sorteio'],
+                'createdAt': row['created_at'],
+                'registradoEm': row['registrado_em'],
+            })
+
+        if updates:
+            cur.executemany(
+                'UPDATE lotofacil_saved_bets SET acertos = ? WHERE id = ?',
+                updates,
+            )
+            conn.commit()
+
+        return jsonify({'total': len(results), 'results': results})
+    finally:
+        conn.close()
+
+
+@app.route('/api/lotofacil/apostas/salvas', methods=['DELETE'])
+def delete_saved_lotofacil_bets():
+    conn = get_write_connection()
+    if not conn:
+        return jsonify({'message': 'Database indisponivel'}), 500
+    concurso_param = request.args.get('concurso', type=int)
+    data = request.get_json(silent=True) or {}
+    if concurso_param is None:
+        concurso_data = data.get('concurso')
+        if concurso_data is not None:
+            try:
+                concurso_param = int(concurso_data)
+            except (TypeError, ValueError):
+                concurso_param = None
+    try:
+        cur = conn.cursor()
+        _ensure_lotofacil_saved_bets_table(cur)
+        if concurso_param is not None:
+            cur.execute(
+                'DELETE FROM lotofacil_saved_bets WHERE concurso = ?',
+                (concurso_param,),
+            )
+        else:
+            cur.execute('DELETE FROM lotofacil_saved_bets')
+        deleted = cur.rowcount
+        conn.commit()
+        return jsonify({'deleted': deleted, 'concurso': concurso_param})
+    finally:
+        conn.close()
+
+
+@app.route('/api/lotofacil/apostas/enviar', methods=['POST'])
+def enviar_lotofacil_bets():
+    data = request.get_json(silent=True) or {}
+    concurso_param = data.get('concurso')
+    limit_param = data.get('limit')
+    shuffle_param = data.get('shuffle')
+    concurso: Optional[int]
+    if concurso_param is not None:
+        try:
+            concurso = int(concurso_param)
+        except (TypeError, ValueError):
+            return jsonify({'message': 'Parametro concurso invalido.'}), 400
+    else:
+        concurso = None
+
+    limit: Optional[int]
+    if limit_param is not None:
+        try:
+            limit = int(limit_param)
+            if limit <= 0:
+                limit = None
+        except (TypeError, ValueError):
+            return jsonify({'message': 'Parametro limit invalido.'}), 400
+    else:
+        limit = None
+
+    shuffle_flag = False
+    if isinstance(shuffle_param, bool):
+        shuffle_flag = shuffle_param
+    elif isinstance(shuffle_param, str):
+        shuffle_flag = shuffle_param.lower() in ('1', 'true', 'yes', 'y', 'sim')
+
+    if not LOTOFACIL_CHECKOUT_SCRIPT.exists():
+        app.logger.warning('Script de checkout nao encontrado em %s', LOTOFACIL_CHECKOUT_SCRIPT)
+        return jsonify({
+            'message': 'Script de checkout nao encontrado. Crie scripts/lotofacil_checkout.py com a automacao.'
+        }), 501
+
+    args = [sys.executable, str(LOTOFACIL_CHECKOUT_SCRIPT)]
+    if concurso is not None:
+        args += ['--concurso', str(concurso)]
+    if limit is not None:
+        args += ['--limit', str(limit)]
+        if shuffle_flag:
+            args += ['--shuffle']
+    elif shuffle_flag:
+        args += ['--shuffle']
+
+    try:
+        subprocess.Popen(args)
+    except Exception as exc:
+        app.logger.exception('Falha ao iniciar script de checkout lotofacil: %s', exc)
+        return jsonify({'message': 'Falha ao iniciar script de checkout.'}), 500
+
+    return jsonify({
+        'message': 'Script iniciado. Verifique a janela do navegador e finalize manualmente.',
+        'script': str(LOTOFACIL_CHECKOUT_SCRIPT),
+        'concurso': concurso,
+        'limit': limit,
+        'shuffle': shuffle_flag,
+    })
+
+
 @app.route('/api/results')
 def list_results():
     def _parse_int_list(values):
@@ -901,7 +1197,46 @@ def list_results():
     results.sort(key=lambda x: x['concurso'], reverse=True)
     total = len(results)
 
-    return jsonify({'total': total, 'results': results[:500]})
+    nah_transition_summary = []
+    nah_transition_pairs = []
+    nah_transition_total = 0
+    nah_transition_current = None
+    if nah_filter:
+        nah_transition_current = list(nah_filter)
+        transition_counter = Counter()
+        max_pairs = request.args.get('nahTransitionLimit', default=50, type=int)
+        max_pairs = max(0, min(max_pairs, 500))
+        for item in results:
+            cur_tuple = (item.get('nahN'), item.get('nahA'), item.get('nahH'))
+            if None in cur_tuple or cur_tuple != nah_filter:
+                continue
+            if concurso_limite is not None and item['concurso'] + 1 > concurso_limite:
+                continue
+            next_tuple = nah_by_concurso.get(item['concurso'] + 1)
+            if not next_tuple or None in next_tuple:
+                continue
+            transition_counter[next_tuple] += 1
+            nah_transition_total += 1
+            if max_pairs and len(nah_transition_pairs) < max_pairs:
+                nah_transition_pairs.append({
+                    'ccCurrent': item['concurso'],
+                    'ccNext': item['concurso'] + 1,
+                    'currentNah': list(cur_tuple),
+                    'nextNah': list(next_tuple),
+                })
+        nah_transition_summary = [
+            {'nah': list(key), 'count': count}
+            for key, count in transition_counter.most_common()
+        ]
+
+    return jsonify({
+        'total': total,
+        'results': results[:500],
+        'nahTransitionCurrent': nah_transition_current,
+        'nahTransitionSummary': nah_transition_summary,
+        'nahTransitionTotal': nah_transition_total,
+        'nahTransitionPairs': nah_transition_pairs,
+    })
 
 
 @app.route('/api/apostas')
@@ -981,7 +1316,7 @@ def selecionar_por_filtros():
       - limit: mÃ¡ximo de apostas retornadas (default 200)
     """
     from filters import FiltroDezenasParesImpares
-    from selector import compute_number_frequencies
+    from selector import compute_number_frequencies, score_bet, select_diverse
     from pipeline_filters import (
         dezenas_from_row, count_par_impar, max_jump, count_columns, count_cre,
         has_run_len_at_least, filter_by_vector, compute_freq_groups, count_groups,
@@ -1018,12 +1353,37 @@ def selecionar_por_filtros():
             return default
         return v.lower() in ('1', 'true', 'sim', 'yes', 'y')
 
+    def _parse_nah_list(param: str) -> list[tuple[int, int, int]]:
+        if not param:
+            return []
+        items: list[tuple[int, int, int]] = []
+        for raw in param.replace('|', ';').replace('\n', ';').split(';'):
+            chunk = raw.strip().strip('()')
+            if not chunk:
+                continue
+            parts = re.findall(r'-?\d+', chunk)
+            if len(parts) != 3:
+                continue
+            try:
+                t = (int(parts[0]), int(parts[1]), int(parts[2]))
+            except ValueError:
+                continue
+            if any(n < 0 for n in t) or sum(t) != 15:
+                continue
+            items.append(t)
+        return items
+
     cutoff = request.args.get('cutoff', type=int)
     aplicar_cre = _bool('aplicarCRE', True)
     aplicar_salto = _bool('aplicarSalto', True)
     aplicar_col = True
     aplicar_nah = _bool('aplicarNAH', True)
     nah_var = request.args.get('nahVar', default=2, type=int)
+    nah_list_param = request.args.get('nahList', '')
+    nah_list = _parse_nah_list(nah_list_param)
+    nah_list_provided = bool(nah_list_param.strip())
+    if nah_list_provided:
+        aplicar_nah = True
     aplicar_abcd = _bool('aplicarABCD', True)
     aplicar_tres = _bool('aplicarTresConsec', True)
     # new filters 7â€“11
@@ -1034,6 +1394,8 @@ def selecionar_por_filtros():
     aplicar_max_um_cinco = _bool('aplicarMaxUmCinco', False)
     aplicar_pi = _bool('aplicarPI', True)
     limit = request.args.get('limit', default=200, type=int)
+    selection_mode = (request.args.get('selectionMode') or 'random').strip().lower()
+    selection_seed = request.args.get('selectionSeed', default=None, type=int)
 
     col_min = _parse_vec(request.args.get('colMin', ''), 5) or [2, 1, 1, 1, 1]
     col_max = _parse_vec(request.args.get('colMax', ''), 5) or [5, 5, 4, 5, 5]
@@ -1115,12 +1477,21 @@ def selecionar_por_filtros():
     nah_base = (N_base, A_base, H_base)
     # mapping sets for classifying bets relative to last result
     NS_to_N, N_to_A, AH_to_H = compute_mapping_sets(last, prev1, prev2)
-    allowed_nah = set(generate_nah_variations(nah_base, var_range=nah_var)) if aplicar_nah else set()
+    if aplicar_nah:
+        if nah_list_provided:
+            allowed_nah = set(nah_list)
+        else:
+            allowed_nah = set(generate_nah_variations(nah_base, var_range=nah_var))
+    else:
+        allowed_nah = set()
 
     # Apply pipeline filters
     filtradas = []
     for r in bets:
         dz = dezenas_from_row(r)
+        countN = sum(1 for d in dz if d in NS_to_N)
+        countA = sum(1 for d in dz if d in N_to_A)
+        countH = sum(1 for d in dz if d in AH_to_H)
         # step CRE
         if aplicar_cre:
             if count_cre(dz) >= 2:
@@ -1137,9 +1508,6 @@ def selecionar_por_filtros():
                 continue
         # step NAH
         if aplicar_nah:
-            countN = sum(1 for d in dz if d in NS_to_N)
-            countA = sum(1 for d in dz if d in N_to_A)
-            countH = sum(1 for d in dz if d in AH_to_H)
             if (countN, countA, countH) not in allowed_nah:
                 continue
         # step ABCD
@@ -1167,13 +1535,113 @@ def selecionar_por_filtros():
         if aplicar_max_um_cinco:
             if not maximo_um_cinco(dz):
                 continue
-        filtradas.append({'dezenas': dz})
+        filtradas.append({
+            'dezenas': dz,
+            'id': r.get('concurso'),
+            'nahN': countN,
+            'nahA': countA,
+            'nahH': countH,
+        })
+
+    rng = random.Random(selection_seed) if selection_seed is not None else random
+
+    def _select_first(items: list[dict], k: int) -> list[dict]:
+        if k >= len(items):
+            return items
+        return items[:k]
+
+    def _select_random(items: list[dict], k: int) -> list[dict]:
+        if k >= len(items):
+            return items
+        return rng.sample(items, k)
+
+    def _select_diverse(items: list[dict], k: int) -> list[dict]:
+        if k >= len(items):
+            return items
+        scored = []
+        for item in items:
+            sc = score_bet(item['dezenas'], freqs)
+            scored.append((item['dezenas'], sc))
+        pool_size = max(k * 5, 200)
+        selected_pairs = select_diverse(scored, k=k, greedy_pool=pool_size)
+        index = {tuple(it['dezenas']): it for it in items}
+        selected = []
+        for dezenas, _ in selected_pairs:
+            it = index.get(tuple(dezenas))
+            if it is not None:
+                selected.append(it)
+        # fallback if mapping misses any
+        if len(selected) < k:
+            remaining = [it for it in items if it not in selected]
+            selected.extend(remaining[: k - len(selected)])
+        return selected
+
+    def _select_stratified(items: list[dict], k: int) -> list[dict]:
+        if k >= len(items):
+            return items
+        buckets = defaultdict(list)
+        for item in items:
+            cnts, _ = count_groups(item['dezenas'], groups)
+            buckets[tuple(cnts)].append(item)
+
+        total = len(items)
+        bucket_info = []
+        for key, bucket in buckets.items():
+            exact = (len(bucket) * k) / total
+            base = int(math.floor(exact))
+            bucket_info.append([key, base, exact - base])
+
+        remaining = k - sum(info[1] for info in bucket_info)
+        bucket_info.sort(key=lambda x: x[2], reverse=True)
+        for idx in range(remaining):
+            bucket_info[idx % len(bucket_info)][1] += 1
+
+        selected = []
+        leftovers = []
+        for key, quota, _ in bucket_info:
+            bucket = list(buckets[key])
+            rng.shuffle(bucket)
+            take = min(quota, len(bucket))
+            selected.extend(bucket[:take])
+            leftovers.extend(bucket[take:])
+
+        if len(selected) < k and leftovers:
+            need = k - len(selected)
+            if need >= len(leftovers):
+                selected.extend(leftovers)
+            else:
+                selected.extend(rng.sample(leftovers, need))
+        return selected
+
+    def _select_distant(items: list[dict], k: int) -> list[dict]:
+        if k >= len(items):
+            return items
+        ordered = sorted(items, key=lambda it: (it.get('id') or 0))
+        step = (len(ordered) - 1) / (k - 1) if k > 1 else 0
+        indices = [int(math.floor(i * step)) for i in range(k)]
+        return [ordered[i] for i in indices]
+
+    filtered_total = len(filtradas)
+    selected = filtradas
+    if limit and filtered_total > limit:
+        if selection_mode in ('primeiras', 'primeiro', 'first', 'firsts'):
+            selected = _select_first(filtradas, limit)
+        elif selection_mode in ('diversidade', 'diversity', 'jaccard'):
+            selected = _select_diverse(filtradas, limit)
+        elif selection_mode in ('estratificada', 'stratified', 'grupos', 'grupo'):
+            selected = _select_stratified(filtradas, limit)
+        elif selection_mode in ('distantes', 'distante', 'id', 'ids'):
+            selected = _select_distant(filtradas, limit)
+        else:
+            selected = _select_random(filtradas, limit)
 
     return jsonify({
         'totalBase': len(bets),
         'cutoff': cutoff,
         'nahBase': nah_base,
         'nahAllowed': sorted(list(allowed_nah)) if aplicar_nah else [],
+        'nahList': [list(item) for item in nah_list],
+        'nahListProvided': nah_list_provided,
         'aplicarCRE': aplicar_cre,
         'aplicarSalto': aplicar_salto,
         'colMin': col_min,
@@ -1192,13 +1660,18 @@ def selecionar_por_filtros():
         'minOnzeQuinze': min_onze_quinze,
         'aplicarMaxUmCinco': aplicar_max_um_cinco,
         'aplicarPI': aplicar_pi,
+        'selectionMode': selection_mode,
+        'selectionSeed': selection_seed,
         'results': [
             {
                 'dezenas': sorted(item['dezenas']),
                 'qtdPares': count_par_impar(item['dezenas'])[0],
-                'qtdImpares': 15 - count_par_impar(item['dezenas'])[0]
+                'qtdImpares': 15 - count_par_impar(item['dezenas'])[0],
+                'nahN': item.get('nahN'),
+                'nahA': item.get('nahA'),
+                'nahH': item.get('nahH'),
             }
-            for item in filtradas[:limit]
+            for item in selected
         ],
         'totalFiltrado': len(filtradas),
         'limit': limit,
@@ -1423,7 +1896,9 @@ def conferir_selecao():
 
         # compute basic attributes for next result
         next_cols = count_columns(next_dezenas)
-        abcd_ok = filter_by_vector(abcd_counts, abcdMin, abcdMax)
+        abcd_ok = True
+        if aplicarABCD:
+            abcd_ok = filter_by_vector(abcd_counts, abcdMin, abcdMax)
         cols_ok = filter_by_vector(next_cols, colMin, colMax)
         tres_ok = has_line_three_consecutives_3L(next_dezenas) if aplicarTres else True
         pi_ok = True
@@ -1489,6 +1964,21 @@ def update_dia_da_sorte():
     except Exception as exc:
         app.logger.exception('Falha ao atualizar resultados do Dia da Sorte: %s', exc)
         return jsonify({'message': 'Falha ao atualizar resultados do Dia da Sorte.'}), 500
+
+
+@app.route('/api/lotofacil/atualizar', methods=['POST'])
+def update_lotofacil():
+    try:
+        inserted = update_lotofacil_results()
+        count = len(inserted)
+        if count:
+            message = f'{count} concurso(s) atualizado(s): {", ".join(str(item) for item in inserted)}.'
+        else:
+            message = 'Nenhum novo concurso encontrado.'
+        return jsonify({'inserted': inserted, 'count': count, 'message': message})
+    except Exception as exc:
+        app.logger.exception('Falha ao atualizar resultados da Lotofacil: %s', exc)
+        return jsonify({'message': 'Falha ao atualizar resultados da Lotofacil.'}), 500
 
 @app.after_request
 def add_cors_headers(response):

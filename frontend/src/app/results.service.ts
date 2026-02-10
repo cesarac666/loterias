@@ -18,6 +18,15 @@ export interface LotofacilResult {
 export interface ResultsResponse {
   total: number;
   results: LotofacilResult[];
+  nahTransitionCurrent?: number[] | null;
+  nahTransitionSummary?: { nah: number[]; count: number }[];
+  nahTransitionTotal?: number;
+  nahTransitionPairs?: {
+    ccCurrent: number;
+    ccNext: number;
+    currentNah: number[];
+    nextNah: number[];
+  }[];
 }
 
 export interface SelectionItem {
@@ -60,6 +69,47 @@ export interface CheckResponse {
   message?: string;
 }
 
+export interface LotofacilSaveResponse {
+  nextConcurso: number;
+  totalReceived: number;
+  totalValid: number;
+  inserted: number;
+  alreadySaved: number;
+  invalid: number;
+  message?: string;
+}
+
+export interface LotofacilSavedBet {
+  id: number;
+  concurso: number;
+  dezenas: number[];
+  acertos: number | null;
+  acertosRegistrados: number;
+  resultadoDisponivel: boolean;
+  resultado: number[] | null;
+  dataSorteio: string | null;
+  createdAt: string;
+  registradoEm?: string | null;
+}
+
+export interface LotofacilSavedResponse {
+  total: number;
+  results: LotofacilSavedBet[];
+}
+
+export interface LotofacilDeleteResponse {
+  deleted: number;
+  concurso: number | null;
+}
+
+export interface LotofacilCheckoutResponse {
+  message: string;
+  script?: string;
+  concurso: number | null;
+  limit: number | null;
+  shuffle?: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -68,6 +118,10 @@ export class ResultsService {
   private readonly BETS_URL = 'http://localhost:5000/api/apostas';
   private readonly SELECT_URL = 'http://localhost:5000/api/selecionar';
   private readonly SELECT_FILTERS_URL = 'http://localhost:5000/api/selecionar-filtros';
+  private readonly UPDATE_LOTOFACIL_URL = 'http://localhost:5000/api/lotofacil/atualizar';
+  private readonly LOTO_SAVED_URL = 'http://localhost:5000/api/lotofacil/apostas/salvas';
+  private readonly LOTO_SAVE_URL = 'http://localhost:5000/api/lotofacil/apostas/salvar';
+  private readonly LOTO_SUBMIT_URL = 'http://localhost:5000/api/lotofacil/apostas/enviar';
 
   constructor(private http: HttpClient) {}
 
@@ -169,18 +223,41 @@ export class ResultsService {
     pares?: number[];
     impares?: number[];
     limit?: number;
+    selectionMode?: string;
+    selectionSeed?: number;
+    nahList?: string;
   }): Observable<{
     totalBase: number;
     cutoff: number;
     nahBase: [number, number, number];
     nahAllowed: [number, number, number][];
     totalFiltrado: number;
-    results: { dezenas: number[]; qtdPares: number; qtdImpares: number }[];
+    results: { dezenas: number[]; qtdPares: number; qtdImpares: number; nahN?: number; nahA?: number; nahH?: number }[];
+    nahList?: number[][];
+    nahListProvided?: boolean;
+    selectionMode?: string;
+    selectionSeed?: number | null;
   }> {
     let params = new HttpParams();
     const {
-      cutoff, aplicarPI, aplicarCRE, aplicarSalto, colMin, colMax, aplicarNAH, nahVar,
-      aplicarABCD, abcdMin, abcdMax, aplicarTresConsec, pares = [], impares = [], limit
+      cutoff,
+      aplicarPI,
+      aplicarCRE,
+      aplicarSalto,
+      colMin,
+      colMax,
+      aplicarNAH,
+      nahVar,
+      aplicarABCD,
+      abcdMin,
+      abcdMax,
+      aplicarTresConsec,
+      pares = [],
+      impares = [],
+      limit,
+      selectionMode,
+      selectionSeed,
+      nahList
     } = options;
     params = params.set('cutoff', String(cutoff));
     if (aplicarPI !== undefined) params = params.set('aplicarPI', String(aplicarPI));
@@ -197,6 +274,47 @@ export class ResultsService {
     if (pares.length) params = params.set('pares', pares.join(','));
     if (impares.length) params = params.set('impares', impares.join(','));
     if (limit !== undefined) params = params.set('limit', String(limit));
+    if (selectionMode) params = params.set('selectionMode', selectionMode);
+    if (selectionSeed !== undefined) params = params.set('selectionSeed', String(selectionSeed));
+    if (nahList) params = params.set('nahList', nahList);
     return this.http.get<any>(this.SELECT_FILTERS_URL, { params });
+  }
+
+  updateLotofacilResults(): Observable<{ inserted: number[]; count: number; message: string }> {
+    return this.http.post<{ inserted: number[]; count: number; message: string }>(
+      this.UPDATE_LOTOFACIL_URL,
+      {}
+    );
+  }
+
+  saveLotofacilBets(cutoff: number, bets: number[][]): Observable<LotofacilSaveResponse> {
+    return this.http.post<LotofacilSaveResponse>(this.LOTO_SAVE_URL, { cutoff, bets });
+  }
+
+  getSavedLotofacilBets(concurso?: number): Observable<LotofacilSavedResponse> {
+    let params = new HttpParams();
+    if (concurso !== undefined && concurso !== null) {
+      params = params.set('concurso', String(concurso));
+    }
+    return this.http.get<LotofacilSavedResponse>(this.LOTO_SAVED_URL, { params });
+  }
+
+  deleteSavedLotofacilBets(concurso?: number): Observable<LotofacilDeleteResponse> {
+    let params = new HttpParams();
+    if (concurso !== undefined && concurso !== null) {
+      params = params.set('concurso', String(concurso));
+    }
+    return this.http.delete<LotofacilDeleteResponse>(this.LOTO_SAVED_URL, { params });
+  }
+
+  submitSavedLotofacilBets(concurso?: number, limit?: number, shuffle: boolean = true): Observable<LotofacilCheckoutResponse> {
+    const body: any = { concurso: concurso ?? null };
+    if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+      body.limit = Math.floor(limit);
+      body.shuffle = !!shuffle;
+    } else if (shuffle) {
+      body.shuffle = true;
+    }
+    return this.http.post<LotofacilCheckoutResponse>(this.LOTO_SUBMIT_URL, body);
   }
 }
