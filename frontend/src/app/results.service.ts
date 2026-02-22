@@ -6,6 +6,7 @@ export interface LotofacilResult {
   concurso: number;
   data: string;
   dezenas: number[];
+  somaDezenas?: number;
   ganhador: number;
   qtdPares: number;
   qtdImpares: number;
@@ -110,6 +111,66 @@ export interface LotofacilCheckoutResponse {
   shuffle?: boolean;
 }
 
+export interface LotofacilBolaDaVezFrequenciaRow {
+  numero: number;
+  frequencia: number;
+  maiorSequencia: number;
+  maiorAtraso: number;
+  sequenciaAtual: number;
+  atrasoAtual: number;
+}
+
+export interface LotofacilBolaDaVezResponse {
+  cutoff: number;
+  cutoffSolicitado?: number;
+  totalHistorico: number;
+  dataCutoff?: string;
+  resultadoCutoff?: number[];
+  entram: number[];
+  saem: number[];
+  frequencia?: LotofacilBolaDaVezFrequenciaRow[];
+}
+
+export interface FilterBacktestModeSummary {
+  mode: string;
+  tests: number;
+  hits: number;
+  hitRate: number;
+  avgFilteredTotal: number;
+  avgSelectedSize: number;
+  avgSelectedPos: number | null;
+  bestSelectedPos: number | null;
+  worstSelectedPos: number | null;
+}
+
+export interface FilterBacktestDetail {
+  cutoff: number;
+  nextConcurso: number;
+  nextPadraoLinha?: string;
+  filteredTotal: number;
+  winnerInFiltered: boolean;
+  winnerFilteredPos: number | null;
+  nahBase?: number[];
+  nahAllowedCount?: number;
+  bolaVezEntramUsadas?: number[];
+  bolaVezSaemUsadas?: number[];
+  modeHits: { [mode: string]: number | null };
+}
+
+export interface FilterBacktestResponse {
+  fromCutoff: number;
+  toCutoff: number;
+  padraoLinha?: string;
+  window: number;
+  step: number;
+  topN: number;
+  totalAvaliados: number;
+  winnerInFilteredCount: number;
+  winnerInFilteredRate: number;
+  modes: FilterBacktestModeSummary[];
+  details: FilterBacktestDetail[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -122,6 +183,8 @@ export class ResultsService {
   private readonly LOTO_SAVED_URL = 'http://localhost:5000/api/lotofacil/apostas/salvas';
   private readonly LOTO_SAVE_URL = 'http://localhost:5000/api/lotofacil/apostas/salvar';
   private readonly LOTO_SUBMIT_URL = 'http://localhost:5000/api/lotofacil/apostas/enviar';
+  private readonly LOTO_BOLA_DA_VEZ_URL = 'http://localhost:5000/api/lotofacil/bola-da-vez';
+  private readonly SELECT_FILTERS_BACKTEST_URL = 'http://localhost:5000/api/selecionar-filtros/backtest';
 
   constructor(private http: HttpClient) {}
 
@@ -130,7 +193,9 @@ export class ResultsService {
     impares: number[] = [],
     concursoLimite?: number,
     padraoLinha?: string,
-    nah?: [number, number, number]
+    nah?: [number, number, number],
+    somaMin?: number,
+    somaMax?: number
   ): Observable<ResultsResponse> {
     let params = new HttpParams();
     if (pares.length) {
@@ -147,6 +212,12 @@ export class ResultsService {
     }
     if (nah && nah.length === 3) {
       params = params.set('nah', nah.join(','));
+    }
+    if (somaMin !== undefined) {
+      params = params.set('somaMin', String(somaMin));
+    }
+    if (somaMax !== undefined) {
+      params = params.set('somaMax', String(somaMax));
     }
 
     return this.http.get<ResultsResponse>(this.API_URL, { params });
@@ -220,6 +291,19 @@ export class ResultsService {
     abcdMin?: number[];
     abcdMax?: number[];
     aplicarTresConsec?: boolean;
+    aplicarBolaVez?: boolean;
+    aplicarLosangoCentro?: boolean;
+    aplicarOnzeQuinze?: boolean;
+    aplicarCountCMinUmQuatro?: boolean;
+    aplicarMaxUmCinco?: boolean;
+    aplicarCountCS?: boolean;
+    aplicarCantos?: boolean;
+    aplicarDiagonais?: boolean;
+    aplicarSoma?: boolean;
+    somaMin?: number;
+    somaMax?: number;
+    bolaVezEntram?: number[];
+    bolaVezSaem?: number[];
     pares?: number[];
     impares?: number[];
     limit?: number;
@@ -232,7 +316,7 @@ export class ResultsService {
     nahBase: [number, number, number];
     nahAllowed: [number, number, number][];
     totalFiltrado: number;
-    results: { dezenas: number[]; qtdPares: number; qtdImpares: number; nahN?: number; nahA?: number; nahH?: number }[];
+    results: { id?: number; dezenas: number[]; qtdPares: number; qtdImpares: number; nahN?: number; nahA?: number; nahH?: number }[];
     nahList?: number[][];
     nahListProvided?: boolean;
     selectionMode?: string;
@@ -252,6 +336,19 @@ export class ResultsService {
       abcdMin,
       abcdMax,
       aplicarTresConsec,
+      aplicarBolaVez,
+      aplicarLosangoCentro,
+      aplicarOnzeQuinze,
+      aplicarCountCMinUmQuatro,
+      aplicarMaxUmCinco,
+      aplicarCountCS,
+      aplicarCantos,
+      aplicarDiagonais,
+      aplicarSoma,
+      somaMin,
+      somaMax,
+      bolaVezEntram,
+      bolaVezSaem,
       pares = [],
       impares = [],
       limit,
@@ -271,6 +368,19 @@ export class ResultsService {
     if (abcdMin && abcdMin.length === 4) params = params.set('abcdMin', abcdMin.join(','));
     if (abcdMax && abcdMax.length === 4) params = params.set('abcdMax', abcdMax.join(','));
     if (aplicarTresConsec !== undefined) params = params.set('aplicarTresConsec', String(aplicarTresConsec));
+    if (aplicarBolaVez !== undefined) params = params.set('aplicarBolaVez', String(aplicarBolaVez));
+    if (aplicarLosangoCentro !== undefined) params = params.set('aplicarLosangoCentro', String(aplicarLosangoCentro));
+    if (aplicarOnzeQuinze !== undefined) params = params.set('aplicarOnzeQuinze', String(aplicarOnzeQuinze));
+    if (aplicarCountCMinUmQuatro !== undefined) params = params.set('aplicarCountCMinUmQuatro', String(aplicarCountCMinUmQuatro));
+    if (aplicarMaxUmCinco !== undefined) params = params.set('aplicarMaxUmCinco', String(aplicarMaxUmCinco));
+    if (aplicarCountCS !== undefined) params = params.set('aplicarCountCS', String(aplicarCountCS));
+    if (aplicarCantos !== undefined) params = params.set('aplicarCantos', String(aplicarCantos));
+    if (aplicarDiagonais !== undefined) params = params.set('aplicarDiagonais', String(aplicarDiagonais));
+    if (aplicarSoma !== undefined) params = params.set('aplicarSoma', String(aplicarSoma));
+    if (somaMin !== undefined) params = params.set('somaMin', String(somaMin));
+    if (somaMax !== undefined) params = params.set('somaMax', String(somaMax));
+    if (bolaVezEntram && bolaVezEntram.length) params = params.set('bolaVezEntram', bolaVezEntram.join(','));
+    if (bolaVezSaem && bolaVezSaem.length) params = params.set('bolaVezSaem', bolaVezSaem.join(','));
     if (pares.length) params = params.set('pares', pares.join(','));
     if (impares.length) params = params.set('impares', impares.join(','));
     if (limit !== undefined) params = params.set('limit', String(limit));
@@ -278,6 +388,111 @@ export class ResultsService {
     if (selectionSeed !== undefined) params = params.set('selectionSeed', String(selectionSeed));
     if (nahList) params = params.set('nahList', nahList);
     return this.http.get<any>(this.SELECT_FILTERS_URL, { params });
+  }
+
+  getFilterBacktest(options: {
+    cutoff: number;
+    aplicarPI?: boolean;
+    aplicarCRE?: boolean;
+    aplicarSalto?: boolean;
+    colMin?: number[];
+    colMax?: number[];
+    aplicarNAH?: boolean;
+    nahVar?: number;
+    aplicarABCD?: boolean;
+    abcdMin?: number[];
+    abcdMax?: number[];
+    aplicarTresConsec?: boolean;
+    aplicarBolaVez?: boolean;
+    aplicarLosangoCentro?: boolean;
+    aplicarOnzeQuinze?: boolean;
+    aplicarCountCMinUmQuatro?: boolean;
+    aplicarMaxUmCinco?: boolean;
+    aplicarCountCS?: boolean;
+    aplicarCantos?: boolean;
+    aplicarDiagonais?: boolean;
+    aplicarSoma?: boolean;
+    somaMin?: number;
+    somaMax?: number;
+    bolaVezEntram?: number[];
+    bolaVezSaem?: number[];
+    pares?: number[];
+    impares?: number[];
+    padraoLinha?: string;
+    nahList?: string;
+    backtestWindow?: number;
+    backtestTopN?: number;
+    backtestStep?: number;
+  }): Observable<FilterBacktestResponse> {
+    let params = new HttpParams();
+    const {
+      cutoff,
+      aplicarPI,
+      aplicarCRE,
+      aplicarSalto,
+      colMin,
+      colMax,
+      aplicarNAH,
+      nahVar,
+      aplicarABCD,
+      abcdMin,
+      abcdMax,
+      aplicarTresConsec,
+      aplicarBolaVez,
+      aplicarLosangoCentro,
+      aplicarOnzeQuinze,
+      aplicarCountCMinUmQuatro,
+      aplicarMaxUmCinco,
+      aplicarCountCS,
+      aplicarCantos,
+      aplicarDiagonais,
+      aplicarSoma,
+      somaMin,
+      somaMax,
+      bolaVezEntram,
+      bolaVezSaem,
+      pares = [],
+      impares = [],
+      padraoLinha,
+      nahList,
+      backtestWindow,
+      backtestTopN,
+      backtestStep,
+    } = options;
+
+    params = params.set('cutoff', String(cutoff));
+    if (aplicarPI !== undefined) params = params.set('aplicarPI', String(aplicarPI));
+    if (aplicarCRE !== undefined) params = params.set('aplicarCRE', String(aplicarCRE));
+    if (aplicarSalto !== undefined) params = params.set('aplicarSalto', String(aplicarSalto));
+    if (colMin && colMin.length === 5) params = params.set('colMin', colMin.join(','));
+    if (colMax && colMax.length === 5) params = params.set('colMax', colMax.join(','));
+    if (aplicarNAH !== undefined) params = params.set('aplicarNAH', String(aplicarNAH));
+    if (nahVar !== undefined) params = params.set('nahVar', String(nahVar));
+    if (aplicarABCD !== undefined) params = params.set('aplicarABCD', String(aplicarABCD));
+    if (abcdMin && abcdMin.length === 4) params = params.set('abcdMin', abcdMin.join(','));
+    if (abcdMax && abcdMax.length === 4) params = params.set('abcdMax', abcdMax.join(','));
+    if (aplicarTresConsec !== undefined) params = params.set('aplicarTresConsec', String(aplicarTresConsec));
+    if (aplicarBolaVez !== undefined) params = params.set('aplicarBolaVez', String(aplicarBolaVez));
+    if (aplicarLosangoCentro !== undefined) params = params.set('aplicarLosangoCentro', String(aplicarLosangoCentro));
+    if (aplicarOnzeQuinze !== undefined) params = params.set('aplicarOnzeQuinze', String(aplicarOnzeQuinze));
+    if (aplicarCountCMinUmQuatro !== undefined) params = params.set('aplicarCountCMinUmQuatro', String(aplicarCountCMinUmQuatro));
+    if (aplicarMaxUmCinco !== undefined) params = params.set('aplicarMaxUmCinco', String(aplicarMaxUmCinco));
+    if (aplicarCountCS !== undefined) params = params.set('aplicarCountCS', String(aplicarCountCS));
+    if (aplicarCantos !== undefined) params = params.set('aplicarCantos', String(aplicarCantos));
+    if (aplicarDiagonais !== undefined) params = params.set('aplicarDiagonais', String(aplicarDiagonais));
+    if (aplicarSoma !== undefined) params = params.set('aplicarSoma', String(aplicarSoma));
+    if (somaMin !== undefined) params = params.set('somaMin', String(somaMin));
+    if (somaMax !== undefined) params = params.set('somaMax', String(somaMax));
+    if (bolaVezEntram && bolaVezEntram.length) params = params.set('bolaVezEntram', bolaVezEntram.join(','));
+    if (bolaVezSaem && bolaVezSaem.length) params = params.set('bolaVezSaem', bolaVezSaem.join(','));
+    if (pares.length) params = params.set('pares', pares.join(','));
+    if (impares.length) params = params.set('impares', impares.join(','));
+    if (padraoLinha) params = params.set('padraoLinha', padraoLinha);
+    if (nahList) params = params.set('nahList', nahList);
+    if (backtestWindow !== undefined) params = params.set('backtestWindow', String(backtestWindow));
+    if (backtestTopN !== undefined) params = params.set('backtestTopN', String(backtestTopN));
+    if (backtestStep !== undefined) params = params.set('backtestStep', String(backtestStep));
+    return this.http.get<FilterBacktestResponse>(this.SELECT_FILTERS_BACKTEST_URL, { params });
   }
 
   updateLotofacilResults(): Observable<{ inserted: number[]; count: number; message: string }> {
@@ -316,5 +531,10 @@ export class ResultsService {
       body.shuffle = true;
     }
     return this.http.post<LotofacilCheckoutResponse>(this.LOTO_SUBMIT_URL, body);
+  }
+
+  getLotofacilBolaDaVez(cutoff: number): Observable<LotofacilBolaDaVezResponse> {
+    const params = new HttpParams().set('cutoff', String(cutoff));
+    return this.http.get<LotofacilBolaDaVezResponse>(this.LOTO_BOLA_DA_VEZ_URL, { params });
   }
 }

@@ -1,5 +1,10 @@
 import { Component } from '@angular/core';
-import { ResultsService } from '../../results.service';
+import {
+  FilterBacktestDetail,
+  FilterBacktestModeSummary,
+  LotofacilBolaDaVezFrequenciaRow,
+  ResultsService
+} from '../../results.service';
 
 @Component({
   selector: 'app-selector-by-filters',
@@ -19,6 +24,19 @@ export class SelectorByFiltersComponent {
   nahListInvalid = false;
   aplicarABCD = true;
   aplicarTresConsec = true;
+  aplicarBolaVez = true;
+  aplicarLosangoCentro = true;
+  aplicarOnzeQuinze = true;
+  aplicarCountCMinUmQuatro = true;
+  aplicarMaxUmCinco = true;
+  aplicarCountCS = true;
+  aplicarCantos = true;
+  aplicarDiagonais = true;
+  aplicarSoma = true;
+  somaMin = '185';
+  somaMax = '205';
+  bolaVezEntram = '';
+  bolaVezSaem = '';
   colMin = '2,1,1,1,1';
   colMax = '5,5,4,5,5';
   abcdMin = '0,2,4,0';
@@ -41,6 +59,31 @@ export class SelectorByFiltersComponent {
   saving = false;
   saveStatus = '';
   saveError = '';
+  bolaVezCalcLoading = false;
+  bolaVezCalcError = '';
+  bolaVezCalcCutoff: number | null = null;
+  bolaVezCalcCutoffSolicitado: number | null = null;
+  bolaVezCalcTotalHistorico = 0;
+  bolaVezCalcDataCutoff = '';
+  bolaVezCalcResultadoCutoff: number[] = [];
+  bolaVezCalcEntram: number[] = [];
+  bolaVezCalcSaem: number[] = [];
+  bolaVezCalcFrequencia: LotofacilBolaDaVezFrequenciaRow[] = [];
+  showBolaVezFrequenciaModal = false;
+  backtestWindow = 60;
+  backtestTopN = 100;
+  backtestStep = 1;
+  backtestPadraoLinha = '';
+  backtestLoading = false;
+  backtestError = '';
+  backtestFromCutoff: number | null = null;
+  backtestToCutoff: number | null = null;
+  backtestTotalAvaliados = 0;
+  backtestWinnerInFilteredCount = 0;
+  backtestWinnerInFilteredRate = 0;
+  backtestModeSummaries: FilterBacktestModeSummary[] = [];
+  backtestDetails: FilterBacktestDetail[] = [];
+  showBacktestAuditModal = false;
 
   // Outputs
   totalBase = 0;
@@ -48,7 +91,7 @@ export class SelectorByFiltersComponent {
   nahBase: [number, number, number] | null = null;
   nahAllowed: [number, number, number][] = [];
   nahAllowedTooltip = '';
-  items: { dezenas: number[]; qtdPares: number; qtdImpares: number; nahN?: number; nahA?: number; nahH?: number; acertos?: number }[] = [];
+  items: { id?: number; dezenas: number[]; qtdPares: number; qtdImpares: number; nahN?: number; nahA?: number; nahH?: number; acertos?: number }[] = [];
   nextConcurso?: number;
   nextDezenas: number[] = [];
   nextInfo?: { qtdPares: number; qtdImpares: number; maiorSalto: number; maiorConsecutivas: number; countC: number[]; abcdCounts: number[] } | null;
@@ -57,17 +100,40 @@ export class SelectorByFiltersComponent {
 
   constructor(private resultsService: ResultsService) {}
 
+  private parseCsvNumbers(value: string): number[] {
+    return value
+      .replace(/;/g, ',')
+      .split(',')
+      .map(v => parseInt(v.trim(), 10))
+      .filter(v => !isNaN(v));
+  }
+
+  private parseOptionalInt(value: string | number | null | undefined): number | undefined {
+    if (value == null || value === '') {
+      return undefined;
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? Math.trunc(value) : undefined;
+    }
+    const parsed = parseInt(value.trim(), 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
   run(): void {
     const cutoffVal = parseInt(this.cutoff, 10);
     if (isNaN(cutoffVal)) return;
-    const paresVals = this.pares.replace(/;/g, ',').split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v));
-    const imparesVals = this.impares.replace(/;/g, ',').split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v));
+    const paresVals = this.parseCsvNumbers(this.pares);
+    const imparesVals = this.parseCsvNumbers(this.impares);
     const pares = this.useParImpar ? paresVals : [];
     const impares = this.useParImpar ? imparesVals : [];
     const colMinArr = this.colMin.split(',').map(v => parseInt(v.trim(), 10));
     const colMaxArr = this.colMax.split(',').map(v => parseInt(v.trim(), 10));
     const abcdMinArr = this.abcdMin.split(',').map(v => parseInt(v.trim(), 10));
     const abcdMaxArr = this.abcdMax.split(',').map(v => parseInt(v.trim(), 10));
+    const somaMin = this.parseOptionalInt(this.somaMin);
+    const somaMax = this.parseOptionalInt(this.somaMax);
+    const bolaVezEntram = this.parseCsvNumbers(this.bolaVezEntram);
+    const bolaVezSaem = this.parseCsvNumbers(this.bolaVezSaem);
     const seedValRaw = this.selectionSeed.trim();
     const seedVal = seedValRaw ? parseInt(seedValRaw, 10) : undefined;
     const selectionSeed = Number.isNaN(seedVal) ? undefined : seedVal;
@@ -83,6 +149,19 @@ export class SelectorByFiltersComponent {
       nahVar: this.nahVar,
       aplicarABCD: this.aplicarABCD,
       aplicarTresConsec: this.aplicarTresConsec,
+      aplicarBolaVez: this.aplicarBolaVez,
+      aplicarLosangoCentro: this.aplicarLosangoCentro,
+      aplicarOnzeQuinze: this.aplicarOnzeQuinze,
+      aplicarCountCMinUmQuatro: this.aplicarCountCMinUmQuatro,
+      aplicarMaxUmCinco: this.aplicarMaxUmCinco,
+      aplicarCountCS: this.aplicarCountCS,
+      aplicarCantos: this.aplicarCantos,
+      aplicarDiagonais: this.aplicarDiagonais,
+      aplicarSoma: this.aplicarSoma,
+      somaMin,
+      somaMax,
+      bolaVezEntram: bolaVezEntram.length ? bolaVezEntram : undefined,
+      bolaVezSaem: bolaVezSaem.length ? bolaVezSaem : undefined,
       colMin: colMinArr,
       colMax: colMaxArr,
       abcdMin: abcdMinArr,
@@ -148,25 +227,36 @@ export class SelectorByFiltersComponent {
     const cutoffVal = parseInt(this.cutoff, 10);
     if (isNaN(cutoffVal) || this.items.length === 0) return;
     const bets = this.items.map(it => it.dezenas);
+    const nahList = this.nahList.trim();
+    const aplicarNAHEfetivo = this.aplicarNAH || !!nahList;
     this.loading = true;
     const options = {
       aplicarPI: this.useParImpar,
       aplicarCRE: this.aplicarCRE,
       aplicarSalto: this.aplicarSalto,
-      aplicarNAH: this.aplicarNAH,
+      aplicarNAH: aplicarNAHEfetivo,
       nahVar: this.nahVar,
       aplicarABCD: this.aplicarABCD,
       aplicarTresConsec: this.aplicarTresConsec,
-      aplicarBolaVez: false,
-      aplicarLosangoCentro: false,
-      aplicarOnzeQuinze: false,
-      aplicarMaxUmCinco: false,
+      aplicarBolaVez: this.aplicarBolaVez,
+      aplicarLosangoCentro: this.aplicarLosangoCentro,
+      aplicarOnzeQuinze: this.aplicarOnzeQuinze,
+      aplicarCountCMinUmQuatro: this.aplicarCountCMinUmQuatro,
+      aplicarMaxUmCinco: this.aplicarMaxUmCinco,
+      aplicarCountCS: this.aplicarCountCS,
+      aplicarCantos: this.aplicarCantos,
+      aplicarDiagonais: this.aplicarDiagonais,
+      aplicarSoma: this.aplicarSoma,
+      somaMin: this.parseOptionalInt(this.somaMin),
+      somaMax: this.parseOptionalInt(this.somaMax),
+      bolaVezEntram: this.parseCsvNumbers(this.bolaVezEntram),
+      bolaVezSaem: this.parseCsvNumbers(this.bolaVezSaem),
       colMin: this.colMin.split(',').map(v => parseInt(v.trim(), 10)),
       colMax: this.colMax.split(',').map(v => parseInt(v.trim(), 10)),
       abcdMin: this.abcdMin.split(',').map(v => parseInt(v.trim(), 10)),
       abcdMax: this.abcdMax.split(',').map(v => parseInt(v.trim(), 10)),
-      pares: this.useParImpar ? this.pares.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v)) : [],
-      impares: this.useParImpar ? this.impares.split(',').map(v => parseInt(v.trim(), 10)).filter(v => !isNaN(v)) : [],
+      pares: this.useParImpar ? this.parseCsvNumbers(this.pares) : [],
+      impares: this.useParImpar ? this.parseCsvNumbers(this.impares) : [],
     };
     this.resultsService.checkSelection(cutoffVal, bets, options).subscribe(res => {
       this.nextConcurso = res.nextConcurso;
@@ -182,5 +272,172 @@ export class SelectorByFiltersComponent {
       this.items.sort((a, b) => (b.acertos ?? 0) - (a.acertos ?? 0));
       this.loading = false;
     }, _ => { this.loading = false; });
+  }
+
+  calculateBolaDaVez(): void {
+    const cutoffVal = parseInt(this.cutoff, 10);
+    if (isNaN(cutoffVal)) {
+      this.bolaVezCalcError = 'Informe um cutoff valido para calcular bola da vez.';
+      this.bolaVezCalcEntram = [];
+      this.bolaVezCalcSaem = [];
+      this.bolaVezCalcCutoff = null;
+      this.bolaVezCalcCutoffSolicitado = null;
+      this.bolaVezCalcTotalHistorico = 0;
+      this.bolaVezCalcDataCutoff = '';
+      this.bolaVezCalcResultadoCutoff = [];
+      this.bolaVezCalcFrequencia = [];
+      this.showBolaVezFrequenciaModal = false;
+      return;
+    }
+
+    this.bolaVezCalcLoading = true;
+    this.bolaVezCalcError = '';
+    this.resultsService.getLotofacilBolaDaVez(cutoffVal).subscribe({
+      next: (res) => {
+        this.bolaVezCalcCutoff = res.cutoff;
+        this.bolaVezCalcCutoffSolicitado = res.cutoffSolicitado ?? cutoffVal;
+        this.bolaVezCalcTotalHistorico = res.totalHistorico || 0;
+        this.bolaVezCalcDataCutoff = res.dataCutoff || '';
+        this.bolaVezCalcResultadoCutoff = res.resultadoCutoff || [];
+        this.bolaVezCalcEntram = res.entram || [];
+        this.bolaVezCalcSaem = res.saem || [];
+        this.bolaVezCalcFrequencia = res.frequencia || [];
+        this.bolaVezCalcLoading = false;
+      },
+      error: () => {
+        this.bolaVezCalcError = 'Falha ao calcular bola da vez.';
+        this.bolaVezCalcCutoff = null;
+        this.bolaVezCalcCutoffSolicitado = null;
+        this.bolaVezCalcTotalHistorico = 0;
+        this.bolaVezCalcDataCutoff = '';
+        this.bolaVezCalcResultadoCutoff = [];
+        this.bolaVezCalcEntram = [];
+        this.bolaVezCalcSaem = [];
+        this.bolaVezCalcFrequencia = [];
+        this.showBolaVezFrequenciaModal = false;
+        this.bolaVezCalcLoading = false;
+      }
+    });
+  }
+
+  useCalculatedBolaDaVez(): void {
+    if (!this.bolaVezCalcEntram.length && !this.bolaVezCalcSaem.length) {
+      return;
+    }
+    this.bolaVezEntram = this.bolaVezCalcEntram.join(',');
+    this.bolaVezSaem = this.bolaVezCalcSaem.join(',');
+  }
+
+  openBolaVezFrequenciaModal(): void {
+    if (!this.bolaVezCalcFrequencia.length) {
+      return;
+    }
+    this.showBolaVezFrequenciaModal = true;
+  }
+
+  closeBolaVezFrequenciaModal(): void {
+    this.showBolaVezFrequenciaModal = false;
+  }
+
+  openBacktestAuditModal(): void {
+    if (!this.backtestDetails.length) {
+      return;
+    }
+    this.showBacktestAuditModal = true;
+  }
+
+  closeBacktestAuditModal(): void {
+    this.showBacktestAuditModal = false;
+  }
+
+  formatModeHits(modeHits: { [mode: string]: number | null } | undefined): string {
+    if (!modeHits) {
+      return '-';
+    }
+    const keys = Object.keys(modeHits);
+    if (!keys.length) {
+      return '-';
+    }
+    return keys
+      .map(k => {
+        const v = modeHits[k];
+        return `${k}:${v == null ? '-' : v}`;
+      })
+      .join(' | ');
+  }
+
+  runBacktest(): void {
+    const cutoffVal = parseInt(this.cutoff, 10);
+    if (isNaN(cutoffVal)) {
+      this.backtestError = 'Informe um cutoff valido para o backtest.';
+      return;
+    }
+
+    const colMinArr = this.colMin.split(',').map(v => parseInt(v.trim(), 10));
+    const colMaxArr = this.colMax.split(',').map(v => parseInt(v.trim(), 10));
+    const abcdMinArr = this.abcdMin.split(',').map(v => parseInt(v.trim(), 10));
+    const abcdMaxArr = this.abcdMax.split(',').map(v => parseInt(v.trim(), 10));
+    const somaMin = this.parseOptionalInt(this.somaMin);
+    const somaMax = this.parseOptionalInt(this.somaMax);
+    const paresVals = this.parseCsvNumbers(this.pares);
+    const imparesVals = this.parseCsvNumbers(this.impares);
+    const bolaVezEntram = this.parseCsvNumbers(this.bolaVezEntram);
+    const bolaVezSaem = this.parseCsvNumbers(this.bolaVezSaem);
+    const nahList = this.nahList.trim();
+    const aplicarNAHEfetivo = this.aplicarNAH || !!nahList;
+
+    this.backtestLoading = true;
+    this.backtestError = '';
+    this.resultsService.getFilterBacktest({
+      cutoff: cutoffVal,
+      aplicarPI: this.useParImpar,
+      aplicarCRE: this.aplicarCRE,
+      aplicarSalto: this.aplicarSalto,
+      aplicarNAH: aplicarNAHEfetivo,
+      nahVar: this.nahVar,
+      aplicarABCD: this.aplicarABCD,
+      aplicarTresConsec: this.aplicarTresConsec,
+      aplicarBolaVez: this.aplicarBolaVez,
+      aplicarLosangoCentro: this.aplicarLosangoCentro,
+      aplicarOnzeQuinze: this.aplicarOnzeQuinze,
+      aplicarCountCMinUmQuatro: this.aplicarCountCMinUmQuatro,
+      aplicarMaxUmCinco: this.aplicarMaxUmCinco,
+      aplicarCountCS: this.aplicarCountCS,
+      aplicarCantos: this.aplicarCantos,
+      aplicarDiagonais: this.aplicarDiagonais,
+      aplicarSoma: this.aplicarSoma,
+      somaMin,
+      somaMax,
+      bolaVezEntram: bolaVezEntram.length ? bolaVezEntram : undefined,
+      bolaVezSaem: bolaVezSaem.length ? bolaVezSaem : undefined,
+      colMin: colMinArr,
+      colMax: colMaxArr,
+      abcdMin: abcdMinArr,
+      abcdMax: abcdMaxArr,
+      pares: this.useParImpar ? paresVals : [],
+      impares: this.useParImpar ? imparesVals : [],
+      padraoLinha: this.backtestPadraoLinha || undefined,
+      nahList: nahList || undefined,
+      backtestWindow: this.backtestWindow,
+      backtestTopN: this.backtestTopN,
+      backtestStep: this.backtestStep
+    }).subscribe({
+      next: (res) => {
+        this.backtestFromCutoff = res.fromCutoff ?? null;
+        this.backtestToCutoff = res.toCutoff ?? null;
+        this.backtestTotalAvaliados = res.totalAvaliados || 0;
+        this.backtestWinnerInFilteredCount = res.winnerInFilteredCount || 0;
+        this.backtestWinnerInFilteredRate = res.winnerInFilteredRate || 0;
+        this.backtestModeSummaries = res.modes || [];
+        this.backtestDetails = res.details || [];
+        this.showBacktestAuditModal = false;
+        this.backtestLoading = false;
+      },
+      error: () => {
+        this.backtestError = 'Falha ao executar backtest.';
+        this.showBacktestAuditModal = false;
+        this.backtestLoading = false;
+      }
+    });
   }
 }

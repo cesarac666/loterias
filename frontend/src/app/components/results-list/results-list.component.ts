@@ -16,6 +16,8 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
   impares = '';
   padraoLinha = '';
   concursoLimite = '';
+  somaMin = '';
+  somaMax = '';
   nahN = '';
   nahA = '';
   nahH = '';
@@ -45,6 +47,16 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
     this.renderChart();
   }
 
+  applyFilters(event?: Event): void {
+    event?.preventDefault();
+    this.loadResults();
+  }
+
+  applyNahHistory(event?: Event): void {
+    event?.preventDefault();
+    this.loadResults();
+  }
+
   loadResults(): void {
     const paresVals = this.pares
       .replace(/;/g, ',')
@@ -60,12 +72,16 @@ export class ResultsListComponent implements OnInit, AfterViewInit {
     const impares = this.useParImpar ? imparesVals : [];
     const limiteVal = parseInt(this.concursoLimite, 10);
     const limite = isNaN(limiteVal) ? undefined : limiteVal;
+    const somaMinVal = parseInt(this.somaMin, 10);
+    const somaMaxVal = parseInt(this.somaMax, 10);
+    const somaMin = isNaN(somaMinVal) ? undefined : somaMinVal;
+    const somaMax = isNaN(somaMaxVal) ? undefined : somaMaxVal;
     const nVal = parseInt(this.nahN, 10);
     const aVal = parseInt(this.nahA, 10);
     const hVal = parseInt(this.nahH, 10);
     const nah = !isNaN(nVal) && !isNaN(aVal) && !isNaN(hVal) ? [nVal, aVal, hVal] as [number, number, number] : undefined;
     this.resultsService
-      .getLastResults(pares, impares, limite, this.padraoLinha, nah)
+      .getLastResults(pares, impares, limite, this.padraoLinha, nah, somaMin, somaMax)
       .subscribe((r: ResultsResponse) => {
         this.chartResults = r.results;
         const cnt = Math.max(1, Number(this.displayCount) || 10);

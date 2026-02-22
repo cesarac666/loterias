@@ -1,14 +1,75 @@
- .title {
+.title {
   font-size: 2.5rem;
-  margin-bottom: 20px;
- }
+  margin-bottom: 16px;
+}
 
- .filters input,
- .filters button {
+.controls-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.control-card {
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 10px;
+  background: #111;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  margin: 0 0 10px;
+}
+
+.filters {
+  display: grid;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.filters input,
+.filters select,
+.filters button,
+.results-toolbar button,
+.update-button,
+table button {
   background-color: #333;
   color: #fff;
   border: 1px solid #555;
- }
+}
+
+.filters input,
+.filters select {
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.update-action {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.update-button {
+  background: #154c79;
+  border-color: #1f6aa8;
+  font-weight: 600;
+  padding: 8px 12px;
+}
+
+.results-toolbar {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 
 .record-count {
   margin: 10px 0;
@@ -22,12 +83,13 @@
   color: #ff6666;
 }
 
- table {
+table {
   width: 100%;
   border-collapse: collapse;
- }
+}
 
-th, td {
+th,
+td {
   border: 1px solid #555;
   padding: 4px;
   text-align: center;
@@ -38,16 +100,81 @@ th {
 }
 
 /* Overlay for print preview */
-.overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1000; }
-.overlay-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
-.overlay-content { position: relative; background: #111; color: #fff; padding: 12px; max-height: 90vh; max-width: 95vw; overflow: auto; z-index: 1001; border: 1px solid #444; border-radius: 4px; }
-.overlay-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.tickets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.ticket-item { background: #1a1a1a; padding: 8px; border: 1px solid #333; border-radius: 4px; }
-.ticket-title { font-size: 12px; margin-bottom: 6px; color: #bbb; }
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.overlay-content {
+  position: relative;
+  background: #111;
+  color: #fff;
+  padding: 12px;
+  max-height: 90vh;
+  max-width: 95vw;
+  overflow: auto;
+  z-index: 1001;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+
+.overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tickets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.ticket-item {
+  background: #1a1a1a;
+  padding: 8px;
+  border: 1px solid #333;
+  border-radius: 4px;
+}
+
+.ticket-title {
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: #bbb;
+}
 
 @media print {
-  .filters, .record-count, table, canvas, .overlay-backdrop, .overlay-header button { display: none !important; }
-  .overlay, .overlay-content { position: static; inset: auto; background: transparent; color: #000; }
-  .ticket-item { break-inside: avoid; page-break-inside: avoid; }
+  .controls-grid,
+  .record-count,
+  .results-toolbar,
+  table,
+  canvas,
+  .overlay-backdrop,
+  .overlay-header button {
+    display: none !important;
+  }
+
+  .overlay,
+  .overlay-content {
+    position: static;
+    inset: auto;
+    background: transparent;
+    color: #000;
+  }
+
+  .ticket-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }

@@ -36,6 +36,11 @@ SELECTOR_LINK_LOTOFACIL = "#Lotofacil"
 SELECTOR_DEZENA = "#n{num:02d}"
 SELECTOR_BOTAO_CARRINHO = "#colocarnocarrinho"
 DEFAULT_TIMEOUT = 50
+DEFAULT_IMPLICIT_WAIT = 1.0
+DEFAULT_LOGIN_WAIT = 3.0
+DEFAULT_BET_DELAY = 0.6
+DEFAULT_CLICK_SETTLE_DELAY = 0.08
+DEFAULT_RETRY_DELAY = 0.15
 
 TERMO_SELECTORS = [
     "#botaosim",
@@ -55,6 +60,8 @@ COOKIE_SELECTORS = [
     "div[class*='adopt'] button",
 ]
 LIMPAR_SELECTORS = [
+    "#limparvolante",
+    "button#limparvolante",
     "#limparjogo",
     "#limpar",
     "button[ng-click*='limpar']",
@@ -99,7 +106,7 @@ def carregar_apostas(concurso: int | None) -> list[dict]:
     ]
 
 
-def criar_driver() -> webdriver.Chrome:
+def criar_driver(implicit_wait: float = DEFAULT_IMPLICIT_WAIT) -> webdriver.Chrome:
     options = ChromeOptions()
     if PROFILE_PATH:
         options.add_argument(f"user-data-dir={PROFILE_PATH}")
@@ -109,11 +116,16 @@ def criar_driver() -> webdriver.Chrome:
     except Exception:
         pass
     driver = webdriver.Chrome(options=options)
-    driver.implicitly_wait(5)
+    driver.implicitly_wait(max(0.0, implicit_wait))
     return driver
 
 
-def selecionar_dezena(driver: webdriver.Chrome, dezena: int, wait: WebDriverWait) -> None:
+def selecionar_dezena(
+    driver: webdriver.Chrome,
+    dezena: int,
+    wait: WebDriverWait,
+    retry_delay: float = DEFAULT_RETRY_DELAY,
+) -> None:
     seletor = SELECTOR_DEZENA.format(num=dezena)
     attempts = 0
     while attempts < 3:
@@ -133,7 +145,8 @@ def selecionar_dezena(driver: webdriver.Chrome, dezena: int, wait: WebDriverWait
                 });
                 """
             )
-            time.sleep(0.5)
+            if retry_delay > 0:
+                time.sleep(retry_delay)
     raise TimeoutException(f"Nao foi possivel clicar na dezena {dezena:02d}")
 
 
@@ -144,7 +157,12 @@ def adicionar_aposta_ao_carrinho(driver: webdriver.Chrome, wait: WebDriverWait) 
     botao_adicionar.click()
 
 
-def tentar_clique(driver: webdriver.Chrome, selectors: list[str], timeout: int = 5) -> bool:
+def tentar_clique(
+    driver: webdriver.Chrome,
+    selectors: list[str],
+    timeout: float = 5,
+    settle_delay: float = DEFAULT_CLICK_SETTLE_DELAY,
+) -> bool:
     for selector in selectors:
         try:
             local_wait = WebDriverWait(driver, timeout)
@@ -154,7 +172,8 @@ def tentar_clique(driver: webdriver.Chrome, selectors: list[str], timeout: int =
                 elemento.click()
             except ElementClickInterceptedException:
                 driver.execute_script("arguments[0].click();", elemento)
-            time.sleep(0.3)
+            if settle_delay > 0:
+                time.sleep(settle_delay)
             return True
         except TimeoutException:
             continue
@@ -164,8 +183,7 @@ def tentar_clique(driver: webdriver.Chrome, selectors: list[str], timeout: int =
 
 
 def aceitar_termos(driver: webdriver.Chrome) -> None:
-    if tentar_clique(driver, TERMO_SELECTORS):
-        time.sleep(0.5)
+    tentar_clique(driver, TERMO_SELECTORS)
 
 
 def aceitar_cookies(driver: webdriver.Chrome) -> None:
@@ -173,11 +191,18 @@ def aceitar_cookies(driver: webdriver.Chrome) -> None:
 
 
 def limpar_aposta(driver: webdriver.Chrome) -> None:
-    tentar_clique(driver, LIMPAR_SELECTORS, timeout=2)
+    tentar_clique(driver, LIMPAR_SELECTORS, timeout=1.0)
 
 
-def enviar_apostas(apostas: Iterable[dict]) -> None:
-    driver = criar_driver()
+def enviar_apostas(
+    apostas: Iterable[dict],
+    *,
+    login_wait: float = DEFAULT_LOGIN_WAIT,
+    between_bets_delay: float = DEFAULT_BET_DELAY,
+    retry_delay: float = DEFAULT_RETRY_DELAY,
+    implicit_wait: float = DEFAULT_IMPLICIT_WAIT,
+) -> None:
+    driver = criar_driver(implicit_wait=implicit_wait)
     wait = WebDriverWait(driver, DEFAULT_TIMEOUT)
     driver.get(BASE_URL)
 
@@ -192,7 +217,8 @@ def enviar_apostas(apostas: Iterable[dict]) -> None:
         wait.until(EC.url_contains("/lotofacil"))
 
     print("Certifique-se de estar logado manualmente se necessario.")
-    time.sleep(5)
+    if login_wait > 0:
+        time.sleep(login_wait)
 
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -202,7 +228,7 @@ def enviar_apostas(apostas: Iterable[dict]) -> None:
 
             limpar_aposta(driver)
             for dezena in aposta["dezenas"]:
-                selecionar_dezena(driver, dezena, wait)
+                selecionar_dezena(driver, dezena, wait, retry_delay=retry_delay)
 
             adicionar_aposta_ao_carrinho(driver, wait)
             try:
@@ -213,7 +239,8 @@ def enviar_apostas(apostas: Iterable[dict]) -> None:
                 conn.commit()
             except Exception:
                 pass
-            time.sleep(3)
+            if between_bets_delay > 0:
+                time.sleep(between_bets_delay)
     finally:
         conn.close()
 
@@ -225,6 +252,30 @@ def main() -> None:
     parser.add_argument("--concurso", type=int, help="Numero do concurso para filtrar as apostas.")
     parser.add_argument("--limit", type=int, default=None, help="Quantidade de apostas a enviar (amostra aleatoria).")
     parser.add_argument("--shuffle", action="store_true", help="Embaralhar/amostrar apostas aleatoriamente.")
+    parser.add_argument(
+        "--between-delay",
+        type=float,
+        default=DEFAULT_BET_DELAY,
+        help=f"Atraso (s) entre uma aposta e outra. Padrao: {DEFAULT_BET_DELAY}.",
+    )
+    parser.add_argument(
+        "--login-wait",
+        type=float,
+        default=DEFAULT_LOGIN_WAIT,
+        help=f"Espera inicial (s) para login manual. Padrao: {DEFAULT_LOGIN_WAIT}.",
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=DEFAULT_RETRY_DELAY,
+        help=f"Espera (s) apos click interceptado. Padrao: {DEFAULT_RETRY_DELAY}.",
+    )
+    parser.add_argument(
+        "--implicit-wait",
+        type=float,
+        default=DEFAULT_IMPLICIT_WAIT,
+        help=f"Implicit wait do Selenium (s). Padrao: {DEFAULT_IMPLICIT_WAIT}.",
+    )
     args = parser.parse_args()
 
     apostas = carregar_apostas(args.concurso)
@@ -239,7 +290,13 @@ def main() -> None:
         random.shuffle(apostas)
 
     try:
-        enviar_apostas(apostas)
+        enviar_apostas(
+            apostas,
+            login_wait=max(0.0, args.login_wait),
+            between_bets_delay=max(0.0, args.between_delay),
+            retry_delay=max(0.0, args.retry_delay),
+            implicit_wait=max(0.0, args.implicit_wait),
+        )
     except Exception as exc:
         print("Falha ao executar automacao Selenium:", exc)
 

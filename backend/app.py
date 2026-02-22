@@ -1033,6 +1033,10 @@ def enviar_lotofacil_bets():
     concurso_param = data.get('concurso')
     limit_param = data.get('limit')
     shuffle_param = data.get('shuffle')
+    between_delay_param = data.get('betweenDelay')
+    login_wait_param = data.get('loginWait')
+    retry_delay_param = data.get('retryDelay')
+    implicit_wait_param = data.get('implicitWait')
     concurso: Optional[int]
     if concurso_param is not None:
         try:
@@ -1059,6 +1063,25 @@ def enviar_lotofacil_bets():
     elif isinstance(shuffle_param, str):
         shuffle_flag = shuffle_param.lower() in ('1', 'true', 'yes', 'y', 'sim')
 
+    def _parse_non_negative_float(value, field_name: str) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(field_name)
+        if parsed < 0:
+            raise ValueError(field_name)
+        return parsed
+
+    try:
+        between_delay = _parse_non_negative_float(between_delay_param, 'betweenDelay')
+        login_wait = _parse_non_negative_float(login_wait_param, 'loginWait')
+        retry_delay = _parse_non_negative_float(retry_delay_param, 'retryDelay')
+        implicit_wait = _parse_non_negative_float(implicit_wait_param, 'implicitWait')
+    except ValueError as exc:
+        return jsonify({'message': f'Parametro {exc.args[0]} invalido.'}), 400
+
     if not LOTOFACIL_CHECKOUT_SCRIPT.exists():
         app.logger.warning('Script de checkout nao encontrado em %s', LOTOFACIL_CHECKOUT_SCRIPT)
         return jsonify({
@@ -1074,6 +1097,14 @@ def enviar_lotofacil_bets():
             args += ['--shuffle']
     elif shuffle_flag:
         args += ['--shuffle']
+    if between_delay is not None:
+        args += ['--between-delay', str(between_delay)]
+    if login_wait is not None:
+        args += ['--login-wait', str(login_wait)]
+    if retry_delay is not None:
+        args += ['--retry-delay', str(retry_delay)]
+    if implicit_wait is not None:
+        args += ['--implicit-wait', str(implicit_wait)]
 
     try:
         subprocess.Popen(args)
@@ -1087,7 +1118,61 @@ def enviar_lotofacil_bets():
         'concurso': concurso,
         'limit': limit,
         'shuffle': shuffle_flag,
+        'betweenDelay': between_delay,
+        'loginWait': login_wait,
+        'retryDelay': retry_delay,
+        'implicitWait': implicit_wait,
     })
+
+
+@app.route('/api/lotofacil/bola-da-vez', methods=['GET'])
+def get_lotofacil_bola_da_vez():
+    cutoff = request.args.get('cutoff', type=int)
+
+    conn = get_connection()
+    if conn is None:
+        return jsonify({'error': 'lotofacil.db not found'}), 500
+
+    try:
+        if cutoff is None:
+            row = conn.execute('SELECT MAX(concurso) AS max_concurso FROM results').fetchone()
+            cutoff = row['max_concurso'] if row else None
+
+        if cutoff is None:
+            return jsonify({'message': 'Nenhum concurso encontrado para calcular bola da vez.'}), 404
+
+        rows = conn.execute(
+            '''
+            SELECT concurso, data, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15
+            FROM results
+            WHERE concurso <= ?
+            ORDER BY concurso ASC
+            ''',
+            (cutoff,),
+        ).fetchall()
+
+        if not rows:
+            return jsonify({'message': 'Nao ha historico para o cutoff informado.'}), 404
+
+        from pipeline_filters import compute_bola_da_vez_frequencia, compute_bola_da_vez_listas
+
+        entram, saem = compute_bola_da_vez_listas(rows)
+        frequencia = compute_bola_da_vez_frequencia(rows)
+        resultado_row = rows[-1]
+        cutoff_usado = int(resultado_row['concurso'])
+        resultado_cutoff = [int(resultado_row[f'n{i}']) for i in range(1, 16)]
+        return jsonify({
+            'cutoff': cutoff_usado,
+            'cutoffSolicitado': cutoff,
+            'totalHistorico': len(rows),
+            'dataCutoff': resultado_row['data'],
+            'resultadoCutoff': resultado_cutoff,
+            'entram': entram,
+            'saem': saem,
+            'frequencia': frequencia,
+        })
+    finally:
+        conn.close()
 
 
 @app.route('/api/results')
@@ -1114,6 +1199,10 @@ def list_results():
         impares = {7, 8, 9}
     concurso_limite = request.args.get('concursoLimite', type=int)
     padrao_linha = request.args.get('padraoLinha')
+    soma_min = request.args.get('somaMin', type=int)
+    soma_max = request.args.get('somaMax', type=int)
+    if soma_min is not None and soma_max is not None and soma_min > soma_max:
+        soma_min, soma_max = soma_max, soma_min
     # NAH filter: accept either a combined "nah" param (e.g., 5,3,7)
     # or separate params nahN, nahA, nahH
     nah_param = request.args.get('nah', '').strip()
@@ -1170,6 +1259,7 @@ def list_results():
     results = []
     for r in rows:
         dezenas = [r[f'n{i}'] for i in range(1, 16)]
+        soma_dezenas = sum(dezenas)
         qtd_pares = sum(1 for d in dezenas if d % 2 == 0)
         qtd_impares = len(dezenas) - qtd_pares
         lines = [0]*5
@@ -1181,11 +1271,16 @@ def list_results():
             continue
         if padrao_linha and padrao != padrao_linha:
             continue
+        if soma_min is not None and soma_dezenas < soma_min:
+            continue
+        if soma_max is not None and soma_dezenas > soma_max:
+            continue
 
         results.append({
             'concurso': r['concurso'],
             'data': r['data'],
             'dezenas': dezenas,
+            'somaDezenas': soma_dezenas,
             'ganhador': r['ganhador'],
             'qtdPares': qtd_pares,
             'qtdImpares': qtd_impares,
@@ -1319,9 +1414,11 @@ def selecionar_por_filtros():
     from selector import compute_number_frequencies, score_bet, select_diverse
     from pipeline_filters import (
         dezenas_from_row, count_par_impar, max_jump, count_columns, count_cre,
-        has_run_len_at_least, filter_by_vector, compute_freq_groups, count_groups,
+        filter_by_vector, compute_freq_groups, count_groups,
         generate_nah_variations, compute_mapping_sets, has_line_three_consecutives_3L,
-        uma_bola_de_cada_vez, in_losango_ou_centro, count_in_range, maximo_um_cinco
+        bola_da_vez, in_losango_ou_centro, maximo_um_cinco,
+        minimo_um_quatro, tem_dezena_onze_ou_quinze, countcs_em_valores,
+        filtro_cantos, filtro_diagonais, compute_bola_da_vez_listas
     )
 
     def _parse_int_list(values):
@@ -1346,6 +1443,20 @@ def selecionar_por_filtros():
             return parts
         except Exception:
             return None
+
+    def _parse_csv_ints(param: str) -> list[int]:
+        if not param:
+            return []
+        out: list[int] = []
+        for part in param.replace(';', ',').split(','):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                out.append(int(part))
+            except ValueError:
+                continue
+        return out
 
     def _bool(name: str, default: bool) -> bool:
         v = request.args.get(name)
@@ -1386,12 +1497,20 @@ def selecionar_por_filtros():
         aplicar_nah = True
     aplicar_abcd = _bool('aplicarABCD', True)
     aplicar_tres = _bool('aplicarTresConsec', True)
-    # new filters 7â€“11
+    # Missing notebook filters (optional, toggled by checkbox in UI)
     aplicar_bola_vez = _bool('aplicarBolaVez', False)
     aplicar_losango = _bool('aplicarLosangoCentro', False)
     aplicar_onze_quinze = _bool('aplicarOnzeQuinze', False)
-    min_onze_quinze = request.args.get('minOnzeQuinze', default=2, type=int)
+    aplicar_countc_min_um_quatro = _bool('aplicarCountCMinUmQuatro', False)
     aplicar_max_um_cinco = _bool('aplicarMaxUmCinco', False)
+    aplicar_countcs = _bool('aplicarCountCS', False)
+    aplicar_cantos = _bool('aplicarCantos', False)
+    aplicar_diagonais = _bool('aplicarDiagonais', False)
+    aplicar_soma = _bool('aplicarSoma', False)
+    soma_min = request.args.get('somaMin', default=None, type=int)
+    soma_max = request.args.get('somaMax', default=None, type=int)
+    if soma_min is not None and soma_max is not None and soma_min > soma_max:
+        soma_min, soma_max = soma_max, soma_min
     aplicar_pi = _bool('aplicarPI', True)
     limit = request.args.get('limit', default=200, type=int)
     selection_mode = (request.args.get('selectionMode') or 'random').strip().lower()
@@ -1401,24 +1520,9 @@ def selecionar_por_filtros():
     col_max = _parse_vec(request.args.get('colMax', ''), 5) or [5, 5, 4, 5, 5]
     abcd_min = _parse_vec(request.args.get('abcdMin', ''), 4) or [0, 2, 4, 0]
     abcd_max = _parse_vec(request.args.get('abcdMax', ''), 4) or [3, 8, 10, 5]
-    # bola-vez lists
-    entram_list = _parse_vec(request.args.get('bolaVezEntram', ''), 0) or []
-    saem_list = _parse_vec(request.args.get('bolaVezSaem', ''), 0) or []
-    # fallback manual parse for arbitrary length
-    if not entram_list:
-        ent = request.args.get('bolaVezEntram', '')
-        if ent:
-            try:
-                entram_list = [int(x.strip()) for x in ent.split(',') if x.strip()]
-            except Exception:
-                entram_list = []
-    if not saem_list:
-        sai = request.args.get('bolaVezSaem', '')
-        if sai:
-            try:
-                saem_list = [int(x.strip()) for x in sai.split(',') if x.strip()]
-            except Exception:
-                saem_list = []
+    # bola-da-vez lists (optional overrides from query)
+    entram_list = _parse_csv_ints(request.args.get('bolaVezEntram', ''))
+    saem_list = _parse_csv_ints(request.args.get('bolaVezSaem', ''))
 
     pares_param = request.args.get('pares', '')
     impares_param = request.args.get('impares', '')
@@ -1461,6 +1565,9 @@ def selecionar_por_filtros():
     conn.close()
     if len(hist) < 3:
         return jsonify({'error': 'histÃ³rico insuficiente para NAH'}), 400
+
+    if aplicar_bola_vez and not entram_list and not saem_list:
+        entram_list, saem_list = compute_bola_da_vez_listas(hist)
 
     # Build frequency groups from historical results
     freqs = compute_number_frequencies(hist)
@@ -1506,6 +1613,12 @@ def selecionar_por_filtros():
             cols = count_columns(dz)
             if not filter_by_vector(cols, col_min, col_max):
                 continue
+        if aplicar_soma:
+            soma = sum(dz)
+            if soma_min is not None and soma < soma_min:
+                continue
+            if soma_max is not None and soma > soma_max:
+                continue
         # step NAH
         if aplicar_nah:
             if (countN, countA, countH) not in allowed_nah:
@@ -1519,21 +1632,37 @@ def selecionar_por_filtros():
         if aplicar_tres:
             if not has_line_three_consecutives_3L(dz):
                 continue
-        # step 7) uma bola de cada vez (list-based include/exclude)
+        # step 7) bola da vez (at least one prediction from "entram" or "saem")
         if aplicar_bola_vez:
-            if not uma_bola_de_cada_vez(dz, entram_list, saem_list):
+            if not bola_da_vez(dz, entram_list, saem_list):
                 continue
         # step 8) losango ou centro
         if aplicar_losango:
             if not in_losango_ou_centro(dz):
                 continue
-        # step 9) onze-quinze (at least min)
+        # step 9) 11_15 (contains 11 or 15)
         if aplicar_onze_quinze:
-            if count_in_range(dz, 11, 15) < min_onze_quinze:
+            if not tem_dezena_onze_ou_quinze(dz):
                 continue
-        # step 11) maximo um cinco (5th column values)
+        # step 10) countC: at least one "4"
+        if aplicar_countc_min_um_quatro:
+            if not minimo_um_quatro(dz):
+                continue
+        # step 11) countC: at most one "5"
         if aplicar_max_um_cinco:
             if not maximo_um_cinco(dz):
+                continue
+        # step 12) consecutivos gerais (countCS in [2,3,4,5])
+        if aplicar_countcs:
+            if not countcs_em_valores(dz, (2, 3, 4, 5)):
+                continue
+        # step 13) cantos (at least two of 1,5,21,25)
+        if aplicar_cantos:
+            if not filtro_cantos(dz, minimo=2):
+                continue
+        # step 14) diagonais (notebook rule)
+        if aplicar_diagonais:
+            if not filtro_diagonais(dz):
                 continue
         filtradas.append({
             'dezenas': dz,
@@ -1657,13 +1786,20 @@ def selecionar_por_filtros():
         'bolaVezSaem': saem_list,
         'aplicarLosangoCentro': aplicar_losango,
         'aplicarOnzeQuinze': aplicar_onze_quinze,
-        'minOnzeQuinze': min_onze_quinze,
+        'aplicarCountCMinUmQuatro': aplicar_countc_min_um_quatro,
         'aplicarMaxUmCinco': aplicar_max_um_cinco,
+        'aplicarCountCS': aplicar_countcs,
+        'aplicarCantos': aplicar_cantos,
+        'aplicarDiagonais': aplicar_diagonais,
+        'aplicarSoma': aplicar_soma,
+        'somaMin': soma_min,
+        'somaMax': soma_max,
         'aplicarPI': aplicar_pi,
         'selectionMode': selection_mode,
         'selectionSeed': selection_seed,
         'results': [
             {
+                'id': item.get('id'),
                 'dezenas': sorted(item['dezenas']),
                 'qtdPares': count_par_impar(item['dezenas'])[0],
                 'qtdImpares': 15 - count_par_impar(item['dezenas'])[0],
@@ -1675,6 +1811,511 @@ def selecionar_por_filtros():
         ],
         'totalFiltrado': len(filtradas),
         'limit': limit,
+    })
+
+@app.route('/api/selecionar-filtros/backtest')
+def backtest_selecionar_por_filtros():
+    from filters import FiltroDezenasParesImpares
+    from selector import compute_number_frequencies, score_bet, select_diverse
+    from pipeline_filters import (
+        dezenas_from_row, max_jump, count_columns, count_cre,
+        filter_by_vector, compute_freq_groups, count_groups,
+        generate_nah_variations, compute_mapping_sets, has_line_three_consecutives_3L,
+        bola_da_vez, in_losango_ou_centro, maximo_um_cinco,
+        minimo_um_quatro, tem_dezena_onze_ou_quinze, countcs_em_valores,
+        filtro_cantos, filtro_diagonais, compute_bola_da_vez_listas
+    )
+
+    def _parse_int_list(values):
+        nums = set()
+        for v in values:
+            for part in v.replace(';', ',').split(','):
+                part = part.strip()
+                if part:
+                    try:
+                        nums.add(int(part))
+                    except ValueError:
+                        continue
+        return nums
+
+    def _parse_vec(param: str, length: int) -> list | None:
+        if not param:
+            return None
+        try:
+            parts = [int(p.strip()) for p in param.split(',')]
+            if len(parts) != length:
+                return None
+            return parts
+        except Exception:
+            return None
+
+    def _parse_csv_ints(param: str) -> list[int]:
+        if not param:
+            return []
+        out: list[int] = []
+        for part in param.replace(';', ',').split(','):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                out.append(int(part))
+            except ValueError:
+                continue
+        return out
+
+    def _bool(name: str, default: bool) -> bool:
+        v = request.args.get(name)
+        if v is None:
+            return default
+        return v.lower() in ('1', 'true', 'sim', 'yes', 'y')
+
+    def _parse_nah_list(param: str) -> list[tuple[int, int, int]]:
+        if not param:
+            return []
+        items: list[tuple[int, int, int]] = []
+        for raw in param.replace('|', ';').replace('\n', ';').split(';'):
+            chunk = raw.strip().strip('()')
+            if not chunk:
+                continue
+            parts = re.findall(r'-?\d+', chunk)
+            if len(parts) != 3:
+                continue
+            try:
+                t = (int(parts[0]), int(parts[1]), int(parts[2]))
+            except ValueError:
+                continue
+            if any(n < 0 for n in t) or sum(t) != 15:
+                continue
+            items.append(t)
+        return items
+
+    def _normalize_selection_mode(mode: str) -> str:
+        raw = (mode or '').strip().lower()
+        if raw in ('primeiras', 'primeiro', 'first', 'firsts'):
+            return 'primeiras'
+        if raw in ('diversidade', 'diversity', 'jaccard'):
+            return 'diversidade'
+        if raw in ('estratificada', 'stratified', 'grupos', 'grupo'):
+            return 'estratificada'
+        if raw in ('distantes', 'distante', 'id', 'ids'):
+            return 'distantes'
+        return 'random'
+
+    def _select_first(items: list[dict], k: int) -> list[dict]:
+        if k >= len(items):
+            return items
+        return items[:k]
+
+    def _select_random(items: list[dict], k: int, rng: random.Random) -> list[dict]:
+        if k >= len(items):
+            return items
+        return rng.sample(items, k)
+
+    def _select_diverse(items: list[dict], k: int, freqs: dict, rng: random.Random) -> list[dict]:
+        if k >= len(items):
+            return items
+        scored = []
+        for item in items:
+            sc = score_bet(item['dezenas'], freqs)
+            scored.append((item['dezenas'], sc))
+        pool_size = max(k * 5, 200)
+        selected_pairs = select_diverse(scored, k=k, greedy_pool=pool_size)
+        index = {tuple(it['dezenas']): it for it in items}
+        selected = []
+        for dezenas, _ in selected_pairs:
+            it = index.get(tuple(dezenas))
+            if it is not None:
+                selected.append(it)
+        if len(selected) < k:
+            remaining = [it for it in items if it not in selected]
+            rng.shuffle(remaining)
+            selected.extend(remaining[: k - len(selected)])
+        return selected
+
+    def _select_stratified(items: list[dict], k: int, groups: dict, rng: random.Random) -> list[dict]:
+        if k >= len(items):
+            return items
+        buckets = defaultdict(list)
+        for item in items:
+            cnts, _ = count_groups(item['dezenas'], groups)
+            buckets[tuple(cnts)].append(item)
+
+        total = len(items)
+        bucket_info = []
+        for key, bucket in buckets.items():
+            exact = (len(bucket) * k) / total
+            base = int(math.floor(exact))
+            bucket_info.append([key, base, exact - base])
+
+        remaining = k - sum(info[1] for info in bucket_info)
+        bucket_info.sort(key=lambda x: x[2], reverse=True)
+        for idx in range(remaining):
+            bucket_info[idx % len(bucket_info)][1] += 1
+
+        selected = []
+        leftovers = []
+        for key, quota, _ in bucket_info:
+            bucket = list(buckets[key])
+            rng.shuffle(bucket)
+            take = min(quota, len(bucket))
+            selected.extend(bucket[:take])
+            leftovers.extend(bucket[take:])
+
+        if len(selected) < k and leftovers:
+            need = k - len(selected)
+            if need >= len(leftovers):
+                selected.extend(leftovers)
+            else:
+                selected.extend(rng.sample(leftovers, need))
+        return selected
+
+    def _select_distant(items: list[dict], k: int) -> list[dict]:
+        if k >= len(items):
+            return items
+        ordered = sorted(items, key=lambda it: (it.get('id') or 0))
+        step = (len(ordered) - 1) / (k - 1) if k > 1 else 0
+        indices = [int(math.floor(i * step)) for i in range(k)]
+        return [ordered[i] for i in indices]
+
+    cutoff = request.args.get('cutoff', type=int)
+    aplicar_cre = _bool('aplicarCRE', True)
+    aplicar_salto = _bool('aplicarSalto', True)
+    aplicar_col = True
+    aplicar_nah = _bool('aplicarNAH', True)
+    nah_var = request.args.get('nahVar', default=2, type=int)
+    nah_list_param = request.args.get('nahList', '')
+    nah_list = _parse_nah_list(nah_list_param)
+    nah_list_provided = bool(nah_list_param.strip())
+    if nah_list_provided:
+        aplicar_nah = True
+    aplicar_abcd = _bool('aplicarABCD', True)
+    aplicar_tres = _bool('aplicarTresConsec', True)
+    aplicar_bola_vez = _bool('aplicarBolaVez', False)
+    aplicar_losango = _bool('aplicarLosangoCentro', False)
+    aplicar_onze_quinze = _bool('aplicarOnzeQuinze', False)
+    aplicar_countc_min_um_quatro = _bool('aplicarCountCMinUmQuatro', False)
+    aplicar_max_um_cinco = _bool('aplicarMaxUmCinco', False)
+    aplicar_countcs = _bool('aplicarCountCS', False)
+    aplicar_cantos = _bool('aplicarCantos', False)
+    aplicar_diagonais = _bool('aplicarDiagonais', False)
+    aplicar_soma = _bool('aplicarSoma', False)
+    soma_min = request.args.get('somaMin', default=None, type=int)
+    soma_max = request.args.get('somaMax', default=None, type=int)
+    if soma_min is not None and soma_max is not None and soma_min > soma_max:
+        soma_min, soma_max = soma_max, soma_min
+    aplicar_pi = _bool('aplicarPI', True)
+
+    col_min = _parse_vec(request.args.get('colMin', ''), 5) or [2, 1, 1, 1, 1]
+    col_max = _parse_vec(request.args.get('colMax', ''), 5) or [5, 5, 4, 5, 5]
+    abcd_min = _parse_vec(request.args.get('abcdMin', ''), 4) or [0, 2, 4, 0]
+    abcd_max = _parse_vec(request.args.get('abcdMax', ''), 4) or [3, 8, 10, 5]
+    entram_list_base = _parse_csv_ints(request.args.get('bolaVezEntram', ''))
+    saem_list_base = _parse_csv_ints(request.args.get('bolaVezSaem', ''))
+
+    pares_param = request.args.get('pares', '')
+    impares_param = request.args.get('impares', '')
+    pares = _parse_int_list(request.args.getlist('pares') or [pares_param])
+    impares = _parse_int_list(request.args.getlist('impares') or [impares_param])
+    padrao_linha_param = (request.args.get('padraoLinha') or '').strip()
+    padrao_linha_map = {
+        'outro': 'outro',
+        '1 linha completa': '1 linha completa',
+        '3 por linha': '3 por linha',
+        'quase 3 por linha': 'quase 3 por linha',
+    }
+    padrao_linha = None
+    if padrao_linha_param and padrao_linha_param.lower() not in ('todos', 'all'):
+        padrao_linha = padrao_linha_map.get(padrao_linha_param.lower())
+        if not padrao_linha:
+            return jsonify({
+                'error': 'padraoLinha invalido',
+                'validos': ['outro', '1 linha completa', '3 por linha', 'quase 3 por linha'],
+            }), 400
+
+    backtest_window = request.args.get('backtestWindow', default=60, type=int)
+    backtest_window = max(1, backtest_window or 60)
+    backtest_top_n = request.args.get('backtestTopN', default=100, type=int)
+    backtest_top_n = max(1, backtest_top_n or 100)
+    backtest_step = request.args.get('backtestStep', default=1, type=int)
+    backtest_step = max(1, backtest_step or 1)
+    backtest_from = request.args.get('backtestFrom', type=int)
+    backtest_to = request.args.get('backtestTo', type=int)
+
+    modes_raw = request.args.get('backtestModes', 'primeiras,diversidade,estratificada,distantes,random')
+    requested_modes = []
+    for part in modes_raw.replace(';', ',').split(','):
+        mode = _normalize_selection_mode(part)
+        if mode and mode not in requested_modes:
+            requested_modes.append(mode)
+    if not requested_modes:
+        requested_modes = ['primeiras', 'diversidade', 'estratificada', 'distantes', 'random']
+
+    selection_seed = request.args.get('selectionSeed', default=None, type=int)
+    if selection_seed is None:
+        selection_seed = 12345
+
+    csv_path = Path(__file__).resolve().parent.parent / 'todasTresPorLinha.csv'
+    with csv_path.open(newline='') as f:
+        reader = csv.DictReader(f)
+        bets = []
+        for idx, row in enumerate(reader, start=1):
+            data_row = {f'n{i}': int(row[f'B{i}']) for i in range(1, 16)}
+            data_row['concurso'] = idx
+            bets.append(data_row)
+
+    if aplicar_pi:
+        if not pares and not impares:
+            pares = {6, 7, 8}
+            impares = {7, 8, 9}
+        filtro_paridade = FiltroDezenasParesImpares(pares, impares, ativo=True)
+        bets = filtro_paridade.apply(bets)
+
+    conn = get_connection()
+    if conn is None:
+        return jsonify({'error': 'lotofacil.db not found'}), 500
+    try:
+        rows = conn.execute(
+            'SELECT concurso, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, data, ganhador FROM results ORDER BY concurso ASC'
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if len(rows) < 4:
+        return jsonify({'error': 'historico insuficiente para backtest'}), 400
+
+    concursos = [int(r['concurso']) for r in rows]
+    concurso_set = set(concursos)
+    idx_by_concurso = {int(r['concurso']): idx for idx, r in enumerate(rows)}
+
+    min_cutoff = concursos[2]
+    max_cutoff = concursos[-2]
+
+    if backtest_to is None:
+        backtest_to = cutoff if cutoff is not None else max_cutoff
+    backtest_to = max(min_cutoff, min(max_cutoff, int(backtest_to)))
+
+    if backtest_from is None:
+        backtest_from = backtest_to - (backtest_window - 1) * backtest_step
+    backtest_from = max(min_cutoff, int(backtest_from))
+
+    cutoffs = []
+    for cc in range(backtest_from, backtest_to + 1, backtest_step):
+        if cc in concurso_set and (cc + 1) in concurso_set:
+            cutoffs.append(cc)
+
+    if not cutoffs:
+        return jsonify({'error': 'nenhum cutoff valido para backtest'}), 400
+
+    mode_stats = {
+        mode: {
+            'tests': 0,
+            'hits': 0,
+            'filtered_sum': 0.0,
+            'selected_sum': 0.0,
+            'pos_sum': 0.0,
+            'pos_count': 0,
+            'best_pos': None,
+            'worst_pos': None,
+        }
+        for mode in requested_modes
+    }
+
+    details = []
+    winner_in_filtered_count = 0
+
+    for cutoff_atual in cutoffs:
+        hist_idx = idx_by_concurso.get(cutoff_atual)
+        if hist_idx is None:
+            continue
+        hist = rows[: hist_idx + 1]
+        if len(hist) < 3:
+            continue
+
+        next_row = rows[hist_idx + 1] if (hist_idx + 1) < len(rows) else None
+        if next_row is None:
+            continue
+        next_dezenas_list = [int(next_row[f'n{i}']) for i in range(1, 16)]
+        next_dezenas = tuple(sorted(next_dezenas_list))
+        next_lines = [0] * 5
+        for d in next_dezenas_list:
+            next_lines[(d - 1) // 5] += 1
+        next_padrao_linha = classify_pattern(next_lines)
+        if padrao_linha and next_padrao_linha != padrao_linha:
+            continue
+
+        # Backtest rule: when Bola da Vez is enabled, recalculate lists for each cutoff.
+        # This avoids leaking a single cutoff's lists into the whole historical window.
+        if aplicar_bola_vez:
+            entram_list, saem_list = compute_bola_da_vez_listas(hist)
+        else:
+            entram_list = list(entram_list_base)
+            saem_list = list(saem_list_base)
+
+        freqs = compute_number_frequencies(hist)
+        groups = compute_freq_groups(freqs)
+
+        last = dezenas_from_row(hist[-1])
+        prev1 = dezenas_from_row(hist[-2])
+        prev2 = dezenas_from_row(hist[-3])
+        NS_to_N, N_to_A, AH_to_H = compute_mapping_sets(last, prev1, prev2)
+        N_base = len(set(last) - set(prev1))
+        A_base = len((set(last) & set(prev1)) - set(prev2))
+        H_base = len(set(last) & set(prev1) & set(prev2))
+
+        if aplicar_nah:
+            if nah_list_provided:
+                allowed_nah = set(nah_list)
+            else:
+                allowed_nah = set(generate_nah_variations((N_base, A_base, H_base), var_range=nah_var))
+        else:
+            allowed_nah = set()
+
+        filtradas = []
+        for r in bets:
+            dz = dezenas_from_row(r)
+            countN = sum(1 for d in dz if d in NS_to_N)
+            countA = sum(1 for d in dz if d in N_to_A)
+            countH = sum(1 for d in dz if d in AH_to_H)
+
+            if aplicar_cre and count_cre(dz) >= 2:
+                continue
+            if aplicar_salto:
+                mj = max_jump(dz)
+                if mj not in (3, 4):
+                    continue
+            if aplicar_col:
+                cols = count_columns(dz)
+                if not filter_by_vector(cols, col_min, col_max):
+                    continue
+            if aplicar_soma:
+                soma = sum(dz)
+                if soma_min is not None and soma < soma_min:
+                    continue
+                if soma_max is not None and soma > soma_max:
+                    continue
+            if aplicar_nah and (countN, countA, countH) not in allowed_nah:
+                continue
+            if aplicar_abcd:
+                cnts, _ = count_groups(dz, groups)
+                if not filter_by_vector(cnts, abcd_min, abcd_max):
+                    continue
+            if aplicar_tres and not has_line_three_consecutives_3L(dz):
+                continue
+            if aplicar_bola_vez and not bola_da_vez(dz, entram_list, saem_list):
+                continue
+            if aplicar_losango and not in_losango_ou_centro(dz):
+                continue
+            if aplicar_onze_quinze and not tem_dezena_onze_ou_quinze(dz):
+                continue
+            if aplicar_countc_min_um_quatro and not minimo_um_quatro(dz):
+                continue
+            if aplicar_max_um_cinco and not maximo_um_cinco(dz):
+                continue
+            if aplicar_countcs and not countcs_em_valores(dz, (2, 3, 4, 5)):
+                continue
+            if aplicar_cantos and not filtro_cantos(dz, minimo=2):
+                continue
+            if aplicar_diagonais and not filtro_diagonais(dz):
+                continue
+
+            filtradas.append({
+                'dezenas': dz,
+                'id': r.get('concurso'),
+            })
+
+        filtered_index = {tuple(sorted(item['dezenas'])): idx + 1 for idx, item in enumerate(filtradas)}
+        winner_filtered_pos = filtered_index.get(next_dezenas)
+        winner_in_filtered = winner_filtered_pos is not None
+        if winner_in_filtered:
+            winner_in_filtered_count += 1
+
+        mode_hits: dict[str, int | None] = {}
+
+        for mode_idx, mode in enumerate(requested_modes):
+            rng = random.Random(selection_seed + cutoff_atual * 131 + mode_idx * 17)
+            if mode == 'primeiras':
+                selected = _select_first(filtradas, backtest_top_n)
+            elif mode == 'diversidade':
+                selected = _select_diverse(filtradas, backtest_top_n, freqs, rng)
+            elif mode == 'estratificada':
+                selected = _select_stratified(filtradas, backtest_top_n, groups, rng)
+            elif mode == 'distantes':
+                selected = _select_distant(filtradas, backtest_top_n)
+            else:
+                selected = _select_random(filtradas, backtest_top_n, rng)
+
+            selected_pos = None
+            for pos, item in enumerate(selected, start=1):
+                if tuple(sorted(item['dezenas'])) == next_dezenas:
+                    selected_pos = pos
+                    break
+
+            stats = mode_stats[mode]
+            stats['tests'] += 1
+            stats['filtered_sum'] += len(filtradas)
+            stats['selected_sum'] += len(selected)
+            if selected_pos is not None:
+                stats['hits'] += 1
+                stats['pos_sum'] += selected_pos
+                stats['pos_count'] += 1
+                if stats['best_pos'] is None or selected_pos < stats['best_pos']:
+                    stats['best_pos'] = selected_pos
+                if stats['worst_pos'] is None or selected_pos > stats['worst_pos']:
+                    stats['worst_pos'] = selected_pos
+
+            mode_hits[mode] = selected_pos
+
+        details.append({
+            'cutoff': cutoff_atual,
+            'nextConcurso': cutoff_atual + 1,
+            'nextPadraoLinha': next_padrao_linha,
+            'filteredTotal': len(filtradas),
+            'winnerInFiltered': winner_in_filtered,
+            'winnerFilteredPos': winner_filtered_pos,
+            'nahBase': [N_base, A_base, H_base],
+            'nahAllowedCount': len(allowed_nah) if aplicar_nah else 0,
+            'bolaVezEntramUsadas': sorted(entram_list) if aplicar_bola_vez else [],
+            'bolaVezSaemUsadas': sorted(saem_list) if aplicar_bola_vez else [],
+            'modeHits': mode_hits,
+        })
+
+    total_avaliados = len(details)
+    if total_avaliados == 0:
+        return jsonify({'error': 'nao foi possivel avaliar nenhum cutoff'}), 400
+
+    summaries = []
+    for mode in requested_modes:
+        stats = mode_stats[mode]
+        tests = stats['tests'] or 0
+        hits = stats['hits'] or 0
+        pos_count = stats['pos_count'] or 0
+        summaries.append({
+            'mode': mode,
+            'tests': tests,
+            'hits': hits,
+            'hitRate': (hits * 100.0 / tests) if tests else 0.0,
+            'avgFilteredTotal': (stats['filtered_sum'] / tests) if tests else 0.0,
+            'avgSelectedSize': (stats['selected_sum'] / tests) if tests else 0.0,
+            'avgSelectedPos': (stats['pos_sum'] / pos_count) if pos_count else None,
+            'bestSelectedPos': stats['best_pos'],
+            'worstSelectedPos': stats['worst_pos'],
+        })
+
+    details.sort(key=lambda d: d['cutoff'], reverse=True)
+    winner_rate = (winner_in_filtered_count * 100.0 / total_avaliados) if total_avaliados else 0.0
+
+    return jsonify({
+        'fromCutoff': min(item['cutoff'] for item in details),
+        'toCutoff': max(item['cutoff'] for item in details),
+        'padraoLinha': padrao_linha,
+        'window': backtest_window,
+        'step': backtest_step,
+        'topN': backtest_top_n,
+        'totalAvaliados': total_avaliados,
+        'winnerInFilteredCount': winner_in_filtered_count,
+        'winnerInFilteredRate': winner_rate,
+        'modes': summaries,
+        'details': details,
     })
 
 @app.route('/api/selecionar')
@@ -1831,7 +2472,9 @@ def conferir_selecao():
             count_par_impar, max_jump, longest_consecutive_run,
             count_columns, compute_freq_groups, count_groups, dezenas_from_row,
             has_line_three_consecutives_3L, filter_by_vector,
-            uma_bola_de_cada_vez, in_losango_ou_centro, count_in_range, maximo_um_cinco
+            bola_da_vez, in_losango_ou_centro, maximo_um_cinco,
+            minimo_um_quatro, tem_dezena_onze_ou_quinze, countcs_em_valores,
+            filtro_cantos, filtro_diagonais, compute_bola_da_vez_listas
         )
         freqs = compute_number_frequencies(hist_rows)
         groups = compute_freq_groups(freqs)
@@ -1871,16 +2514,35 @@ def conferir_selecao():
         aplicarBolaVez = _b('aplicarBolaVez', False)
         aplicarLosango = _b('aplicarLosangoCentro', False)
         aplicarOnzeQuinze = _b('aplicarOnzeQuinze', False)
+        aplicarCountCMinUmQuatro = _b('aplicarCountCMinUmQuatro', False)
         aplicarMaxUmCinco = _b('aplicarMaxUmCinco', False)
+        aplicarCountCS = _b('aplicarCountCS', False)
+        aplicarCantos = _b('aplicarCantos', False)
+        aplicarDiagonais = _b('aplicarDiagonais', False)
+        aplicarSoma = _b('aplicarSoma', False)
         colMin = opts.get('colMin') or [2,1,1,1,1]
         colMax = opts.get('colMax') or [5,5,4,5,5]
         abcdMin = opts.get('abcdMin') or [0,2,4,0]
         abcdMax = opts.get('abcdMax') or [3,8,10,5]
+        somaMin = opts.get('somaMin')
+        somaMax = opts.get('somaMax')
+        try:
+            somaMin = int(somaMin) if somaMin is not None else None
+        except (TypeError, ValueError):
+            somaMin = None
+        try:
+            somaMax = int(somaMax) if somaMax is not None else None
+        except (TypeError, ValueError):
+            somaMax = None
+        if somaMin is not None and somaMax is not None and somaMin > somaMax:
+            somaMin, somaMax = somaMax, somaMin
         nahVar = int(opts.get('nahVar') or 2)
         paresAllow = set(opts.get('pares') or [])
         imparesAllow = set(opts.get('impares') or [])
         bolaEntram = opts.get('bolaVezEntram') or []
         bolaSaem = opts.get('bolaVezSaem') or []
+        if aplicarBolaVez and not bolaEntram and not bolaSaem:
+            bolaEntram, bolaSaem = compute_bola_da_vez_listas(hist_rows)
 
         # build NAH allowed set similar to selection
         allowed_nah = set()
@@ -1912,10 +2574,21 @@ def conferir_selecao():
         nah_ok = True
         if aplicarNAH and nah_counts is not None:
             nah_ok = tuple(nah_counts) in allowed_nah
-        bola_ok = uma_bola_de_cada_vez(next_dezenas, bolaEntram, bolaSaem) if aplicarBolaVez else True
+        bola_ok = bola_da_vez(next_dezenas, bolaEntram, bolaSaem) if aplicarBolaVez else True
         los_ok = in_losango_ou_centro(next_dezenas) if aplicarLosango else True
-        onz_ok = (count_in_range(next_dezenas, 11, 15) >= int(opts.get('minOnzeQuinze') or 2)) if aplicarOnzeQuinze else True
+        onz_ok = tem_dezena_onze_ou_quinze(next_dezenas) if aplicarOnzeQuinze else True
+        min4_ok = minimo_um_quatro(next_dezenas) if aplicarCountCMinUmQuatro else True
         max5_ok = maximo_um_cinco(next_dezenas) if aplicarMaxUmCinco else True
+        countcs_ok = countcs_em_valores(next_dezenas, (2, 3, 4, 5)) if aplicarCountCS else True
+        cantos_ok = filtro_cantos(next_dezenas, minimo=2) if aplicarCantos else True
+        diagonais_ok = filtro_diagonais(next_dezenas) if aplicarDiagonais else True
+        soma_ok = True
+        if aplicarSoma:
+            soma_total = sum(next_dezenas)
+            if somaMin is not None and soma_total < somaMin:
+                soma_ok = False
+            if somaMax is not None and soma_total > somaMax:
+                soma_ok = False
         cre_ok = True  # CRE is defined on generated bets grid-like structure; for next result we can compute pattern equality between adjacent rows
         try:
             from pipeline_filters import count_cre
@@ -1932,10 +2605,15 @@ def conferir_selecao():
             'NAH': nah_ok,
             'ABCD': abcd_ok,
             'TresConsecLinha': tres_ok,
-            'BolaUmaVez': bola_ok,
+            'BolaDaVez': bola_ok,
             'LosangoOuCentro': los_ok,
             'OnzeQuinze': onz_ok,
+            'CountCMinUmQuatro': min4_ok,
             'MaximoUmCinco': max5_ok,
+            'CountCS': countcs_ok,
+            'Cantos': cantos_ok,
+            'Diagonais': diagonais_ok,
+            'SomaDezenas': soma_ok,
         }
     except Exception:
         next_info = None

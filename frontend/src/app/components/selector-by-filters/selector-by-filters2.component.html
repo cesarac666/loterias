@@ -1,76 +1,221 @@
-<h1 class="title">Seleção por Filtros (Notebook)</h1>
+<h1 class="title">Selecao por Filtros (Notebook)</h1>
 
-<div class="filters">
-  <div>
-    <label>Cutoff (concurso):</label>
-    <input type="number" [(ngModel)]="cutoff" placeholder="ex: 3000">
-  </div>
-  <div>
-    <label><input type="checkbox" [(ngModel)]="aplicarCRE"> CRE &lt; 2</label>
-    <label><input type="checkbox" [(ngModel)]="aplicarSalto"> Salto 3/4</label>
-    <label><input type="checkbox" [(ngModel)]="aplicarNAH"> NAH var</label>
-    <input
-      type="number"
-      [(ngModel)]="nahVar"
-      min="0"
-      style="width:80px"
-      title="Variação NAH (±)"
-      [disabled]="nahList.trim()"
-    >
-    <label><input type="checkbox" [(ngModel)]="aplicarABCD"> ABCD</label>
-    <label><input type="checkbox" [(ngModel)]="aplicarTresConsec"> 3 consecutivos na linha</label>
-  </div>
-  <div>
-    <label>Colunas min:</label>
-    <input type="text" [(ngModel)]="colMin" placeholder="2,1,1,1,1">
-    <label>Colunas max:</label>
-    <input type="text" [(ngModel)]="colMax" placeholder="5,5,4,5,5">
-  </div>
-  <div>
-    <label>ABCD min:</label>
-    <input type="text" [(ngModel)]="abcdMin" placeholder="0,2,4,0" [disabled]="!aplicarABCD">
-    <label>ABCD max:</label>
-    <input type="text" [(ngModel)]="abcdMax" placeholder="3,8,10,5" [disabled]="!aplicarABCD">
-  </div>
-  <div>
-    <label>NAH lista:</label>
-    <input
-      type="text"
-      [(ngModel)]="nahList"
-      placeholder="ex: 7,4,4;6,4,5"
-      style="width:260px"
-    >
-    <small *ngIf="nahList.trim() && !nahListInvalid">Lista ativa: NAH var ignorado.</small>
-    <small *ngIf="nahListInvalid" style="color:#ff6666;">
-      Lista inválida ou vazia após parse. Use formato "7,4,4;6,4,5".
-    </small>
-  </div>
-  <div>
-    <label><input type="checkbox" [(ngModel)]="useParImpar"> Par/Ímpar</label>
-    <input type="text" [(ngModel)]="pares" placeholder="Pares (ex: 6,7,8)" [disabled]="!useParImpar">
-    <input type="text" [(ngModel)]="impares" placeholder="Ímpares (ex: 7,8,9)" [disabled]="!useParImpar">
-    <label>Limit:</label>
-    <input type="number" [(ngModel)]="limit" min="1" style="width:80px">
-    <label>Seleção:</label>
-    <select [(ngModel)]="selectionMode">
-      <option value="random">Aleatória</option>
-      <option value="diversidade">Diversidade (Jaccard)</option>
-      <option value="estratificada">Estratificada (grupos)</option>
-      <option value="distantes">Distantes (ID base)</option>
-      <option value="primeiras">Primeiras (ordem da base)</option>
-    </select>
-    <label>Seed:</label>
-    <input type="text" [(ngModel)]="selectionSeed" placeholder="opcional" style="width:90px">
-  </div>
-  <div>
+<div class="filters-layout">
+  <section class="filters-card">
+    <h2 class="section-title">Parametros Gerais</h2>
+    <div class="field-row">
+      <label>Cutoff (concurso):</label>
+      <input type="number" [(ngModel)]="cutoff" placeholder="ex: 3000">
+
+      <label>Limit:</label>
+      <input type="number" [(ngModel)]="limit" min="1" style="width: 90px;">
+
+      <label>Selecao:</label>
+      <select [(ngModel)]="selectionMode">
+        <option value="random">Aleatoria</option>
+        <option value="diversidade">Diversidade (Jaccard)</option>
+        <option value="estratificada">Estratificada (grupos)</option>
+        <option value="distantes">Distantes (ID base)</option>
+        <option value="primeiras">Primeiras (ordem da base)</option>
+      </select>
+
+      <label>Seed:</label>
+      <input type="text" [(ngModel)]="selectionSeed" placeholder="opcional" style="width: 100px;">
+    </div>
+
+    <div class="field-row">
+      <button (click)="calculateBolaDaVez()" [disabled]="bolaVezCalcLoading || !cutoff">
+        {{ bolaVezCalcLoading ? 'Calculando bola da vez...' : 'Calcular bolas da vez' }}
+      </button>
+      <button (click)="useCalculatedBolaDaVez()" [disabled]="!bolaVezCalcEntram.length && !bolaVezCalcSaem.length">
+        Usar nas caixas do filtro
+      </button>
+      <button (click)="openBolaVezFrequenciaModal()" [disabled]="!bolaVezCalcFrequencia.length">
+        Ver tabela de frequencia
+      </button>
+      <span *ngIf="bolaVezCalcCutoff !== null">
+        Cutoff solicitado: {{ bolaVezCalcCutoffSolicitado ?? bolaVezCalcCutoff }} |
+        resultado usado: CC {{ bolaVezCalcCutoff }}<span *ngIf="bolaVezCalcDataCutoff"> ({{ bolaVezCalcDataCutoff }})</span> |
+        dezenas: [{{ bolaVezCalcResultadoCutoff.join(', ') || '-' }}] |
+        historico: {{ bolaVezCalcTotalHistorico }} concursos |
+        entram: [{{ bolaVezCalcEntram.join(', ') || '-' }}] |
+        saem: [{{ bolaVezCalcSaem.join(', ') || '-' }}]
+      </span>
+    </div>
+    <div class="field-row" *ngIf="bolaVezCalcError">
+      <small style="color:#ff6666;">{{ bolaVezCalcError }}</small>
+    </div>
+  </section>
+
+  <section class="filters-card">
+    <h2 class="section-title">Filtros Antigos</h2>
+
+    <div class="field-row">
+      <label><input type="checkbox" [(ngModel)]="aplicarCRE"> CRE &lt; 2</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarSalto"> Salto 3/4</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarNAH"> NAH var</label>
+      <input
+        type="number"
+        [(ngModel)]="nahVar"
+        min="0"
+        style="width: 80px"
+        title="Variacao NAH (+/-)"
+        [disabled]="nahList.trim()"
+      >
+      <label><input type="checkbox" [(ngModel)]="aplicarABCD"> ABCD</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarTresConsec"> 3 consecutivos na linha</label>
+    </div>
+
+    <div class="field-row">
+      <label>Colunas min:</label>
+      <input type="text" [(ngModel)]="colMin" placeholder="2,1,1,1,1">
+      <label>Colunas max:</label>
+      <input type="text" [(ngModel)]="colMax" placeholder="5,5,4,5,5">
+    </div>
+
+    <div class="field-row">
+      <label>ABCD min:</label>
+      <input type="text" [(ngModel)]="abcdMin" placeholder="0,2,4,0" [disabled]="!aplicarABCD">
+      <label>ABCD max:</label>
+      <input type="text" [(ngModel)]="abcdMax" placeholder="3,8,10,5" [disabled]="!aplicarABCD">
+    </div>
+
+    <div class="field-row">
+      <label>NAH lista:</label>
+      <input
+        type="text"
+        [(ngModel)]="nahList"
+        placeholder="ex: 7,4,4;6,4,5"
+        style="width: 280px"
+      >
+      <small *ngIf="nahList.trim() && !nahListInvalid">Lista ativa: NAH var ignorado.</small>
+      <small *ngIf="nahListInvalid" style="color:#ff6666;">
+        Lista invalida ou vazia apos parse. Use formato "7,4,4;6,4,5".
+      </small>
+    </div>
+
+    <div class="field-row">
+      <label><input type="checkbox" [(ngModel)]="useParImpar"> Par/Impar</label>
+      <input type="text" [(ngModel)]="pares" placeholder="Pares (ex: 6,7,8)" [disabled]="!useParImpar">
+      <input type="text" [(ngModel)]="impares" placeholder="Impares (ex: 7,8,9)" [disabled]="!useParImpar">
+    </div>
+  </section>
+
+  <section class="filters-card">
+    <h2 class="section-title">Filtros Novos</h2>
+
+    <div class="field-row">
+      <label><input type="checkbox" [(ngModel)]="aplicarBolaVez"> Bola da vez</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarLosangoCentro"> Losango/Centro</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarOnzeQuinze"> 11_15</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarCountCMinUmQuatro"> CountC minimo um 4</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarMaxUmCinco"> CountC maximo um 5</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarCountCS"> CountCS [2,3,4,5]</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarCantos"> Cantos (&gt;=2)</label>
+      <label><input type="checkbox" [(ngModel)]="aplicarDiagonais"> Diagonais</label>
+    </div>
+
+    <div class="field-row">
+      <label>Bola da vez entram:</label>
+      <input
+        type="text"
+        [(ngModel)]="bolaVezEntram"
+        placeholder="auto (vazio) ou ex: 24,13"
+        style="width: 220px"
+        [disabled]="!aplicarBolaVez"
+      >
+      <label>saem:</label>
+      <input
+        type="text"
+        [(ngModel)]="bolaVezSaem"
+        placeholder="opcional (nao aplicado no notebook)"
+        style="width: 230px"
+        [disabled]="!aplicarBolaVez"
+      >
+    </div>
+
+    <div class="field-row">
+      <label><input type="checkbox" [(ngModel)]="aplicarSoma"> Soma das dezenas</label>
+      <label>Soma min:</label>
+      <input type="number" [(ngModel)]="somaMin" style="width: 100px" [disabled]="!aplicarSoma">
+      <label>Soma max:</label>
+      <input type="number" [(ngModel)]="somaMax" style="width: 100px" [disabled]="!aplicarSoma">
+    </div>
+  </section>
+
+  <div class="action-row">
     <button (click)="run()" [disabled]="loading">
       {{ loading ? 'Processando...' : 'Filtrar' }}
     </button>
     <button (click)="saveBets()" [disabled]="saving || loading || !items.length">
       {{ saving ? 'Salvando...' : 'Salvar apostas' }}
     </button>
-    <button (click)="check()" [disabled]="loading || !cutoff || items.length===0">Conferir próximo</button>
+    <button (click)="check()" [disabled]="loading || !cutoff || items.length===0">Conferir proximo</button>
   </div>
+
+  <section class="filters-card">
+    <h2 class="section-title">Backtest Top-N</h2>
+    <div class="field-row">
+      <label>Janela (cutoffs):</label>
+      <input type="number" [(ngModel)]="backtestWindow" min="1" style="width: 90px;">
+      <label>Top-N:</label>
+      <input type="number" [(ngModel)]="backtestTopN" min="1" style="width: 90px;">
+      <label>Passo:</label>
+      <input type="number" [(ngModel)]="backtestStep" min="1" style="width: 90px;">
+      <label>Padrao visual:</label>
+      <select [(ngModel)]="backtestPadraoLinha">
+        <option value="">Todos</option>
+        <option value="outro">outro</option>
+        <option value="1 linha completa">1 linha completa</option>
+        <option value="3 por linha">3 por linha</option>
+        <option value="quase 3 por linha">quase 3 por linha</option>
+      </select>
+      <button (click)="runBacktest()" [disabled]="backtestLoading || !cutoff">
+        {{ backtestLoading ? 'Executando backtest...' : 'Rodar backtest' }}
+      </button>
+      <button (click)="openBacktestAuditModal()" [disabled]="!backtestDetails.length">
+        Auditoria por concurso
+      </button>
+    </div>
+    <div class="field-row" *ngIf="backtestError">
+      <small style="color:#ff6666;">{{ backtestError }}</small>
+    </div>
+    <div class="field-row" *ngIf="backtestTotalAvaliados > 0">
+      <span>
+        Intervalo: {{ backtestFromCutoff }} ate {{ backtestToCutoff }} |
+        padrao: {{ backtestPadraoLinha || 'Todos' }} |
+        avaliados: {{ backtestTotalAvaliados }} |
+        vencedor dentro das filtradas: {{ backtestWinnerInFilteredCount }} ({{ backtestWinnerInFilteredRate | number:'1.2-2' }}%)
+      </span>
+    </div>
+
+    <div class="table-scroll" *ngIf="backtestModeSummaries.length">
+      <table>
+        <thead>
+          <tr>
+            <th>Modo</th>
+            <th>Hits Top-N</th>
+            <th>Taxa (%)</th>
+            <th>Media filtradas</th>
+            <th>Media posicao (quando hit)</th>
+            <th>Melhor posicao</th>
+            <th>Pior posicao</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of backtestModeSummaries">
+            <td>{{ selectionModeLabels[row.mode] || row.mode }}</td>
+            <td>{{ row.hits }}/{{ row.tests }}</td>
+            <td>{{ row.hitRate | number:'1.2-2' }}</td>
+            <td>{{ row.avgFilteredTotal | number:'1.0-0' }}</td>
+            <td>{{ row.avgSelectedPos !== null ? (row.avgSelectedPos | number:'1.2-2') : '-' }}</td>
+            <td>{{ row.bestSelectedPos ?? '-' }}</td>
+            <td>{{ row.worstSelectedPos ?? '-' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
 <p *ngIf="saveStatus" class="record-count">{{ saveStatus }}</p>
@@ -86,22 +231,104 @@
   </div>
 </div>
 
+<div *ngIf="showBolaVezFrequenciaModal" class="modal-overlay" (click)="closeBolaVezFrequenciaModal()">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-label="Tabela de frequencia da bola da vez" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <strong>Tabela de frequencia (25 dezenas)</strong>
+      <button type="button" (click)="closeBolaVezFrequenciaModal()">Fechar</button>
+    </div>
+    <div class="modal-subtitle">
+      CC {{ bolaVezCalcCutoff }} | concursos: {{ bolaVezCalcTotalHistorico }}
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Numero</th>
+            <th>Frequencia</th>
+            <th>MaiorSequencia</th>
+            <th>MaiorAtraso</th>
+            <th>SequenciaAtual</th>
+            <th>AtrasoAtual</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of bolaVezCalcFrequencia">
+            <td>{{ row.numero }}</td>
+            <td>{{ row.frequencia }}</td>
+            <td>{{ row.maiorSequencia }}</td>
+            <td>{{ row.maiorAtraso }}</td>
+            <td>{{ row.sequenciaAtual }}</td>
+            <td>{{ row.atrasoAtual }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="showBacktestAuditModal" class="modal-overlay" (click)="closeBacktestAuditModal()">
+  <div class="modal-dialog modal-dialog--wide" role="dialog" aria-modal="true" aria-label="Auditoria do backtest" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <strong>Auditoria do Backtest por Concurso</strong>
+      <button type="button" (click)="closeBacktestAuditModal()">Fechar</button>
+    </div>
+    <div class="modal-subtitle">
+      Cutoffs: {{ backtestFromCutoff }} ate {{ backtestToCutoff }} | avaliados: {{ backtestTotalAvaliados }} | padrao: {{ backtestPadraoLinha || 'Todos' }}
+    </div>
+    <div class="table-scroll">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Cutoff</th>
+            <th>Proximo</th>
+            <th>Padrao</th>
+            <th>Filtradas</th>
+            <th>Vencedor nas filtradas</th>
+            <th>Posicao nas filtradas</th>
+            <th>NAH base</th>
+            <th>NAH variacoes</th>
+            <th>Bola entram</th>
+            <th>Bola saem</th>
+            <th>Hits por modo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let d of backtestDetails">
+            <td>{{ d.cutoff }}</td>
+            <td>{{ d.nextConcurso }}</td>
+            <td>{{ d.nextPadraoLinha || '-' }}</td>
+            <td>{{ d.filteredTotal }}</td>
+            <td>{{ d.winnerInFiltered ? 'Sim' : 'Nao' }}</td>
+            <td>{{ d.winnerFilteredPos ?? '-' }}</td>
+            <td>{{ d.nahBase?.length ? d.nahBase.join('/') : '-' }}</td>
+            <td>{{ d.nahAllowedCount ?? '-' }}</td>
+            <td>{{ d.bolaVezEntramUsadas?.length ? d.bolaVezEntramUsadas.join(',') : '-' }}</td>
+            <td>{{ d.bolaVezSaemUsadas?.length ? d.bolaVezSaemUsadas.join(',') : '-' }}</td>
+            <td>{{ formatModeHits(d.modeHits) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <p class="record-count">
-  Base (após par/ímpar): {{ totalBase }} | Filtradas: {{ totalFiltrado }}
+  Base (apos par/impar): {{ totalBase }} | Filtradas: {{ totalFiltrado }}
   <span *ngIf="selectionModeApplied">
-    | Seleção: {{ selectionModeLabels[selectionModeApplied] || selectionModeApplied }}
+    | Selecao: {{ selectionModeLabels[selectionModeApplied] || selectionModeApplied }}
     <span *ngIf="selectionSeedApplied !== null"> (seed: {{ selectionSeedApplied }})</span>
   </span>
   <span *ngIf="nahBase">
     | NAH base: {{ nahBase[0] }}/{{ nahBase[1] }}/{{ nahBase[2] }}
-    <span *ngIf="nahAllowed?.length" [title]="nahAllowedTooltip">[variações: {{ nahAllowed.length }}]</span>
+    <span *ngIf="nahAllowed?.length" [title]="nahAllowedTooltip">[variacoes: {{ nahAllowed.length }}]</span>
   </span>
-  <span *ngIf="nextConcurso">| Próximo ({{ nextConcurso }}): {{ nextDezenas.join(', ') }}</span>
+  <span *ngIf="nextConcurso">| Proximo ({{ nextConcurso }}): {{ nextDezenas.join(', ') }}</span>
 </p>
 
 <div *ngIf="nextInfo" style="margin:8px 0;">
   <div>
-    <strong>Par/Ímpar:</strong> {{ nextInfo.qtdPares }}/{{ nextInfo.qtdImpares }}
+    <strong>Par/Impar:</strong> {{ nextInfo.qtdPares }}/{{ nextInfo.qtdImpares }}
     | <strong>Maior Salto:</strong> {{ nextInfo.maiorSalto }}
     | <strong>Maior Consecutivas:</strong> {{ nextInfo.maiorConsecutivas }}
   </div>
@@ -114,21 +341,21 @@
 </div>
 
 <div *ngIf="filtersCheck" style="margin:8px 0;">
-  <strong>Filtros (próximo resultado):</strong>
+  <strong>Filtros (proximo resultado):</strong>
   <span *ngFor="let k of (filtersCheck | keyvalue)" style="margin-right:8px;">
     {{ k.key }}: <span [style.color]="k.value ? 'lightgreen' : '#ff6666'">{{ k.value ? 'OK' : 'Falha' }}</span>
   </span>
   <hr>
-  
 </div>
 
 <table>
   <thead>
     <tr>
       <th>#</th>
+      <th>ID</th>
       <th>Dezenas</th>
       <th>Pares</th>
-      <th>Ímpares</th>
+      <th>Impares</th>
       <th>NAH</th>
       <th>Acertos</th>
     </tr>
@@ -136,6 +363,7 @@
   <tbody>
     <tr *ngFor="let it of items; let i = index">
       <td>{{ i + 1 }}</td>
+      <td>{{ it.id ?? '-' }}</td>
       <td>{{ it.dezenas.join(', ') }}</td>
       <td>{{ it.qtdPares }}</td>
       <td>{{ it.qtdImpares }}</td>

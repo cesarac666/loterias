@@ -87,20 +87,28 @@ def has_line_three_consecutives_3L(dezenas: Sequence[int]) -> bool:
 
 # --- Additional filters (7–11) ---
 
-def uma_bola_de_cada_vez(
+def bola_da_vez(
     dezenas: Sequence[int],
     entram: Optional[Sequence[int]] = None,
     saem: Optional[Sequence[int]] = None,
 ) -> bool:
-    """Keep if contains all 'entram' and none of 'saem'. If lists are empty/None, pass-through."""
+    """True if at least one prediction is correct:
+    - any number from `entram` is present in `dezenas`; or
+    - any number from `saem` is absent from `dezenas`.
+    """
     s = set(dezenas)
-    if entram:
-        if not set(entram).issubset(s):
-            return False
-    if saem:
-        if set(saem) & s:
-            return False
-    return True
+    print("s:")
+    print(s)
+
+    print("entram:")
+    print(entram)
+
+    print("saem:")
+    print(saem)
+    
+    acertou_entram = bool(entram and (set(entram) & s))
+    acertou_saem = bool(saem and (set(saem) - s))
+    return acertou_entram or acertou_saem
 
 
 def in_losango_ou_centro(dezenas: Sequence[int]) -> bool:
@@ -116,9 +124,130 @@ def count_in_range(dezenas: Sequence[int], low: int, high: int) -> int:
 
 
 def maximo_um_cinco(dezenas: Sequence[int]) -> bool:
-    """At most one number from the 5th column: {5,10,15,20,25}."""
-    col5 = {5, 10, 15, 20, 25}
-    return sum(1 for d in dezenas if d in col5) <= 1
+    """Notebook rule: in countC vector, value 5 appears at most once."""
+    cols = count_columns(dezenas)
+    return cols.count(5) <= 1
+
+
+def minimo_um_quatro(dezenas: Sequence[int]) -> bool:
+    """Notebook rule: in countC vector, value 4 appears at least once."""
+    cols = count_columns(dezenas)
+    return cols.count(4) >= 1
+
+
+def tem_dezena_onze_ou_quinze(dezenas: Sequence[int]) -> bool:
+    return bool(set(dezenas) & {11, 15})
+
+
+def countcs_em_valores(dezenas: Sequence[int], permitidos: Sequence[int] = (2, 3, 4, 5)) -> bool:
+    return longest_consecutive_run(dezenas) in set(permitidos)
+
+
+def filtro_cantos(dezenas: Sequence[int], minimo: int = 2) -> bool:
+    cantos = {1, 5, 21, 25}
+    return sum(1 for d in dezenas if d in cantos) >= minimo
+
+
+def filtro_diagonais(dezenas: Sequence[int]) -> bool:
+    grupo_1 = {5, 9, 17, 21}
+    grupo_2 = {1, 7, 19, 25}
+    s = set(dezenas)
+    return bool(s & grupo_1) and sum(1 for d in grupo_2 if d in s) >= 2
+
+
+def _compute_bola_da_vez_stats(hist_rows: Sequence[dict]) -> Dict[int, Dict[str, int]]:
+    """Compute per-number streak/delay/frequency stats over historical draws."""
+    stats: Dict[int, Dict[str, int]] = {
+        n: {
+            'frequencia': 0,
+            'sequencia_atual': 0,
+            'maior_sequencia': 0,
+            'atraso_atual': 0,
+            'maior_atraso': 0,
+        }
+        for n in range(1, 26)
+    }
+
+    for row in hist_rows:
+        dezenas = {row[f'n{i}'] for i in range(1, 16)}
+        for n in range(1, 26):
+            st = stats[n]
+            if n in dezenas:
+                st['frequencia'] += 1
+                st['sequencia_atual'] += 1
+                if st['sequencia_atual'] > st['maior_sequencia']:
+                    st['maior_sequencia'] = st['sequencia_atual']
+                st['atraso_atual'] = 0
+            else:
+                st['atraso_atual'] += 1
+                if st['atraso_atual'] > st['maior_atraso']:
+                    st['maior_atraso'] = st['atraso_atual']
+                st['sequencia_atual'] = 0
+
+    return stats
+
+
+def compute_bola_da_vez_listas(
+    hist_rows: Sequence[dict],
+    margem_entram: int = 4,
+    margem_saem: int = 9,
+) -> Tuple[List[int], List[int]]:
+    """Derive bola-da-vez lists using Top-3 heuristics.
+
+    Current rule:
+    - `entram`: top 3 by `maior_atraso` (tie-break: atraso atual, numero)
+    - `saem`: top 3 by `frequencia` (tie-break: sequencia atual, numero),
+      excluding numbers already selected in `entram`.
+
+    Notes:
+    - `margem_entram` and `margem_saem` are kept for backward compatibility
+      but are no longer used.
+    """
+    stats = _compute_bola_da_vez_stats(hist_rows)
+    top_n = 3
+
+    ordenado_atraso = sorted(
+        stats.items(),
+        key=lambda it: (-it[1]['maior_atraso'], -it[1]['atraso_atual'], it[0]),
+    )
+    ordenado_frequencia = sorted(
+        stats.items(),
+        key=lambda it: (-it[1]['frequencia'], -it[1]['sequencia_atual'], it[0]),
+    )
+
+    entram = [n for n, _ in ordenado_atraso[:top_n]]
+    entram_set = set(entram)
+
+    saem: List[int] = []
+    for n, _ in ordenado_frequencia:
+        if n in entram_set:
+            continue
+        saem.append(n)
+        if len(saem) >= top_n:
+            break
+
+    return sorted(entram), sorted(saem)
+
+
+def compute_bola_da_vez_frequencia(
+    hist_rows: Sequence[dict],
+) -> List[Dict[str, int]]:
+    """Build frequency table equivalent to notebook df_frequencia."""
+    stats = _compute_bola_da_vez_stats(hist_rows)
+    rows: List[Dict[str, int]] = []
+    for numero in range(1, 26):
+        st = stats[numero]
+        rows.append({
+            'numero': numero,
+            'frequencia': st['frequencia'],
+            'maiorSequencia': st['maior_sequencia'],
+            'maiorAtraso': st['maior_atraso'],
+            'sequenciaAtual': st['sequencia_atual'],
+            'atrasoAtual': st['atraso_atual'],
+        })
+
+    rows.sort(key=lambda r: (-r['frequencia'], r['numero']))
+    return rows
 
 
 def filter_by_vector(list_values: Sequence[int], min_vec: Sequence[int], max_vec: Sequence[int]) -> bool:

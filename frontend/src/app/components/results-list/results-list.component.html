@@ -1,33 +1,113 @@
-<h1 class="title">Resultados da Lotofácil</h1>
-<div class="filters">
-  <label>
-    <input type="checkbox" [(ngModel)]="useParImpar"> Par Ímpar
-  </label>
-  <input type="text" placeholder="Pares (ex: 6,7,8)" [(ngModel)]="pares" [disabled]="!useParImpar">
-  <input type="text" placeholder="Ímpares (ex: 7,8)" [(ngModel)]="impares" [disabled]="!useParImpar">
-  <select [(ngModel)]="padraoLinha">
-    <option value="">Todos</option>
-    <option value="outro">outro</option>
-    <option value="1 linha completa">1 linha completa</option>
-    <option value="3 por linha">3 por linha</option>
-    <option value="quase 3 por linha">quase 3 por linha</option>
-  </select>
-  <input type="number" placeholder="NAH N" [(ngModel)]="nahN">
-  <input type="number" placeholder="NAH A" [(ngModel)]="nahA">
-  <input type="number" placeholder="NAH H" [(ngModel)]="nahH">
-  <input type="number" placeholder="Concurso Limite" [(ngModel)]="concursoLimite">
-  <input type="number" placeholder="Exibir (qtde)" [(ngModel)]="displayCount" min="1" style="width:120px">
-  <button (click)="loadResults()">Aplicar</button>
-  <button (click)="updateResults()" [disabled]="updating">{{ updating ? 'Atualizando...' : 'Atualizar' }}</button>
-  <button (click)="openPrintPreview()">Imprimir</button>
+<h1 class="title">Resultados da Lotofacil</h1>
+
+<div class="controls-grid">
+  <section class="control-card">
+    <h2 class="section-title">Filtros</h2>
+    <form class="filters" (ngSubmit)="applyFilters($event)">
+      <div class="row">
+        <label>
+          <input type="checkbox" name="useParImpar" [(ngModel)]="useParImpar"> Par/Impar
+        </label>
+        <input
+          type="text"
+          name="pares"
+          placeholder="Pares (ex: 6,7,8)"
+          [(ngModel)]="pares"
+          [disabled]="!useParImpar"
+        >
+        <input
+          type="text"
+          name="impares"
+          placeholder="Impares (ex: 7,8,9)"
+          [(ngModel)]="impares"
+          [disabled]="!useParImpar"
+        >
+      </div>
+
+      <div class="row">
+        <select name="padraoLinha" [(ngModel)]="padraoLinha">
+          <option value="">Todos</option>
+          <option value="outro">outro</option>
+          <option value="1 linha completa">1 linha completa</option>
+          <option value="3 por linha">3 por linha</option>
+          <option value="quase 3 por linha">quase 3 por linha</option>
+        </select>
+        <input type="number" name="somaMin" placeholder="Soma min" [(ngModel)]="somaMin" style="width:120px">
+        <input type="number" name="somaMax" placeholder="Soma max" [(ngModel)]="somaMax" style="width:120px">
+        <input type="number" name="concursoLimite" placeholder="Concurso limite" [(ngModel)]="concursoLimite">
+        <input type="number" name="displayCount" placeholder="Exibir (qtde)" [(ngModel)]="displayCount" min="1" style="width:120px">
+        <button type="submit">Aplicar filtros</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="control-card">
+    <h2 class="section-title">Historico NAH</h2>
+    <form class="filters" (ngSubmit)="applyNahHistory($event)">
+      <div class="row">
+        <input type="number" name="nahN" placeholder="NAH N" [(ngModel)]="nahN">
+        <input type="number" name="nahA" placeholder="NAH A" [(ngModel)]="nahA">
+        <input type="number" name="nahH" placeholder="NAH H" [(ngModel)]="nahH">
+        <button type="submit">Aplicar NAH</button>
+      </div>
+    </form>
+  </section>
+
+  <div class="update-action">
+    <button class="update-button" (click)="updateResults()" [disabled]="updating">
+      {{ updating ? 'Atualizando base...' : 'Atualizar base de resultados' }}
+    </button>
+  </div>
 </div>
 
 <p class="record-count">Total de registros: {{ totalRegistros }}</p>
 <p *ngIf="updateMessage" class="status">{{ updateMessage }}</p>
 <p *ngIf="updateError" class="status error">{{ updateError }}</p>
 
+<div class="results-toolbar">
+  <h2>Ultimos {{ results.length }} resultados</h2>
+  <button (click)="openPrintPreview()">Imprimir</button>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>Concurso</th>
+      <th>Data</th>
+      <th>Dezenas</th>
+      <th>Soma</th>
+      <th>Pares</th>
+      <th>Impares</th>
+      <th>Padrao Linha</th>
+      <th>NAH</th>
+      <th>Talao</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let r of results">
+      <td>{{ r.concurso }}</td>
+      <td>{{ r.data }}</td>
+      <td>{{ r.dezenas.join(', ') }}</td>
+      <td>{{ r.somaDezenas ?? '-' }}</td>
+      <td>{{ r.qtdPares }}</td>
+      <td>{{ r.qtdImpares }}</td>
+      <td>{{ r.padraoLinha }}</td>
+      <td>{{ r.nahN ?? '-' }}/{{ r.nahA ?? '-' }}/{{ r.nahH ?? '-' }}</td>
+      <td><button (click)="showTicket(r.dezenas)">Talao</button></td>
+    </tr>
+  </tbody>
+</table>
+
+<div *ngIf="selectedTicketNumbers" style="margin:12px 0;">
+  <h3>Talao (selecionado)</h3>
+  <app-lottoticket [numerosSorteados]="selectedTicketNumbers"></app-lottoticket>
+  <div style="margin-top:8px;">
+    <button (click)="printTicket()">Imprimir</button>
+  </div>
+  <hr>
+</div>
+
 <div *ngIf="nahTransitionSummary.length" class="record-count">
-  <strong>Transição NAH (atual → próximo)</strong>
+  <strong>Transicao NAH (atual -> proximo)</strong>
   <span *ngIf="nahTransitionCurrent?.length">
     | atual: {{ nahTransitionCurrent[0] }}/{{ nahTransitionCurrent[1] }}/{{ nahTransitionCurrent[2] }}
   </span>
@@ -36,8 +116,8 @@
 <table *ngIf="nahTransitionSummary.length">
   <thead>
     <tr>
-      <th>NAH próximo</th>
-      <th>Ocorrências</th>
+      <th>NAH proximo</th>
+      <th>Ocorrencias</th>
       <th>%</th>
     </tr>
   </thead>
@@ -51,15 +131,15 @@
 </table>
 
 <div *ngIf="nahTransitionPairs.length" class="record-count">
-  <strong>Exemplos (concurso atual → próximo)</strong>
+  <strong>Exemplos (concurso atual -> proximo)</strong>
 </div>
 <table *ngIf="nahTransitionPairs.length">
   <thead>
     <tr>
       <th>CC atual</th>
-      <th>CC próximo</th>
+      <th>CC proximo</th>
       <th>NAH atual</th>
-      <th>NAH próximo</th>
+      <th>NAH proximo</th>
     </tr>
   </thead>
   <tbody>
@@ -72,44 +152,7 @@
   </tbody>
 </table>
 
-<h2>Últimos 10 resultados</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Concurso</th>
-      <th>Data</th>
-      <th>Dezenas</th>
-      <th>Pares</th>
-      <th>Ímpares</th>
-      <th>Padrão Linha</th>
-      <th>NAH</th>
-      <th>Talão</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr *ngFor="let r of results">
-      <td>{{ r.concurso }}</td>
-      <td>{{ r.data }}</td>
-      <td>{{ r.dezenas.join(', ') }}</td>
-      <td>{{ r.qtdPares }}</td>
-      <td>{{ r.qtdImpares }}</td>
-      <td>{{ r.padraoLinha }}</td>
-      <td>{{ r.nahN ?? '-' }}/{{ r.nahA ?? '-' }}/{{ r.nahH ?? '-' }}</td>
-      <td><button (click)="showTicket(r.dezenas)">Talão</button></td>
-    </tr>
-  </tbody>
-</table>
-
-<div *ngIf="selectedTicketNumbers" style="margin:12px 0;">
-  <h3>Talão (selecionado)</h3>
-  <app-lottoticket [numerosSorteados]="selectedTicketNumbers"></app-lottoticket>
-  <div style="margin-top:8px;">
-    <button (click)="printTicket()">Imprimir</button>
-  </div>
-  <hr>
-</div>
-
-<h2>Tendência por padrão (últimos 500 resultados)</h2>
+<h2>Tendencia por padrao (ultimos 500 resultados)</h2>
 
 <canvas #patternChart width="600" height="300"></canvas>
 
@@ -117,7 +160,7 @@
 <div *ngIf="showPrintPreview" class="overlay">
   <div class="overlay-content">
     <div class="overlay-header">
-      <h3>Impressão de Talões ({{ results.length }} itens)</h3>
+      <h3>Impressao de Taloes ({{ results.length }} itens)</h3>
       <div>
         <button (click)="printAll()">Imprimir</button>
         <button (click)="closePrintPreview()">Fechar</button>
@@ -125,7 +168,7 @@
     </div>
     <div class="tickets-grid">
       <div class="ticket-item" *ngFor="let r of results">
-        <div class="ticket-title">Concurso {{ r.concurso }} — {{ r.data }}</div>
+        <div class="ticket-title">Concurso {{ r.concurso }} - {{ r.data }}</div>
         <app-lottoticket [numerosSorteados]="r.dezenas"></app-lottoticket>
       </div>
     </div>

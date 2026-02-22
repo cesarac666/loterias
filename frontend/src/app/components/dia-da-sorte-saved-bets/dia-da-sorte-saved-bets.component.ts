@@ -22,7 +22,7 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
   submitting = false;
   error?: string;
   status?: string;
-  concursoFiltro = '';
+  concursoFiltro: string | number | null = '';
   aguardandoResultado = 0;
   resumo: SummaryEntry[] = [];
   ordenarPorAcertosDesc = true;
@@ -169,13 +169,15 @@ export class DiaDaSorteSavedBetsComponent implements OnInit {
       .map(([label, value]) => ({ label, value }));
   }
 
-  private parseConcurso(value: string): number | undefined {
-    const trimmed = value?.trim();
-    if (!trimmed) {
+  private parseConcurso(value: string | number | null | undefined): number | undefined {
+    if (value === null || value === undefined || value === '') {
       return undefined;
     }
-    const num = Number(trimmed);
-    return Number.isFinite(num) ? num : undefined;
+    const num = typeof value === 'number' ? value : Number(String(value).trim());
+    if (!Number.isInteger(num) || num <= 0) {
+      return undefined;
+    }
+    return num;
   }
 
   submitBetsOnline(): void {

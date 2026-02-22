@@ -1,10 +1,74 @@
-.title { font-size: 20px; margin: 10px 0; }
-.filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-label { margin-right: 6px; }
-input { margin-right: 8px; }
-table { width: 100%; border-collapse: collapse; }
-th, td { border: 1px solid #444; padding: 4px 6px; }
-.record-count { margin: 10px 0; }
+.title {
+  font-size: 20px;
+  margin: 10px 0;
+}
+
+.filters-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.filters-card {
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 10px;
+  background: #111;
+}
+
+.section-title {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.field-row span {
+  color: #c9d1d9;
+  font-size: 12px;
+}
+
+.field-row:last-child {
+  margin-bottom: 0;
+}
+
+label {
+  margin-right: 2px;
+}
+
+input,
+select,
+button {
+  margin-right: 4px;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #444;
+  padding: 4px 6px;
+}
+
+.record-count {
+  margin: 10px 0;
+}
 
 button {
   display: inline-flex;
@@ -74,4 +138,54 @@ button {
   100% {
     transform: translateX(100%);
   }
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.62);
+  z-index: 1300;
+  padding: 16px;
+}
+
+.modal-dialog {
+  width: min(980px, 100%);
+  max-height: 85vh;
+  background: #111;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-dialog--wide {
+  width: min(1450px, 100%);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.modal-subtitle {
+  font-size: 12px;
+  color: #c9d1d9;
+}
+
+.table-scroll {
+  overflow: auto;
+}
+
+.audit-table th,
+.audit-table td {
+  white-space: nowrap;
+  font-size: 12px;
 }
