@@ -10,17 +10,52 @@
       <label>Limit:</label>
       <input type="number" [(ngModel)]="limit" min="1" style="width: 90px;">
 
+      <label>Padrao visual:</label>
+      <select [(ngModel)]="padraoLinha" (ngModelChange)="onPadraoLinhaChange()">
+        <option value="">Selecione</option>
+        <option value="outro">outro</option>
+        <option value="1 linha completa">1 linha completa</option>
+        <option value="3 por linha">3 por linha</option>
+        <option value="quase 3 por linha">quase 3 por linha</option>
+      </select>
+
       <label>Selecao:</label>
       <select [(ngModel)]="selectionMode">
         <option value="random">Aleatoria</option>
         <option value="diversidade">Diversidade (Jaccard)</option>
         <option value="estratificada">Estratificada (grupos)</option>
         <option value="distantes">Distantes (ID base)</option>
+        <option value="historica">Historica (freq + transicao + soma)</option>
         <option value="primeiras">Primeiras (ordem da base)</option>
       </select>
 
       <label>Seed:</label>
       <input type="text" [(ngModel)]="selectionSeed" placeholder="opcional" style="width: 100px;">
+    </div>
+
+    <div class="field-row" *ngIf="padraoLinha === 'quase 3 por linha' || padraoLinha === '1 linha completa'">
+      <ng-container *ngIf="padraoLinha === 'quase 3 por linha'">
+        <label>Linha com 2 dezenas:</label>
+        <select [(ngModel)]="padraoLinhaLinha2">
+          <option value="">Selecione</option>
+          <option value="1">Linha 1 (1-5)</option>
+          <option value="2">Linha 2 (6-10)</option>
+          <option value="3">Linha 3 (11-15)</option>
+          <option value="4">Linha 4 (16-20)</option>
+          <option value="5">Linha 5 (21-25)</option>
+        </select>
+      </ng-container>
+      <ng-container *ngIf="padraoLinha === '1 linha completa'">
+        <label>Linha com 5 dezenas:</label>
+        <select [(ngModel)]="padraoLinhaLinha5">
+          <option value="">Selecione</option>
+          <option value="1">Linha 1 (1-5)</option>
+          <option value="2">Linha 2 (6-10)</option>
+          <option value="3">Linha 3 (11-15)</option>
+          <option value="4">Linha 4 (16-20)</option>
+          <option value="5">Linha 5 (21-25)</option>
+        </select>
+      </ng-container>
     </div>
 
     <div class="field-row">
@@ -162,14 +197,6 @@
       <input type="number" [(ngModel)]="backtestTopN" min="1" style="width: 90px;">
       <label>Passo:</label>
       <input type="number" [(ngModel)]="backtestStep" min="1" style="width: 90px;">
-      <label>Padrao visual:</label>
-      <select [(ngModel)]="backtestPadraoLinha">
-        <option value="">Todos</option>
-        <option value="outro">outro</option>
-        <option value="1 linha completa">1 linha completa</option>
-        <option value="3 por linha">3 por linha</option>
-        <option value="quase 3 por linha">quase 3 por linha</option>
-      </select>
       <button (click)="runBacktest()" [disabled]="backtestLoading || !cutoff">
         {{ backtestLoading ? 'Executando backtest...' : 'Rodar backtest' }}
       </button>
@@ -180,10 +207,21 @@
     <div class="field-row" *ngIf="backtestError">
       <small style="color:#ff6666;">{{ backtestError }}</small>
     </div>
+    <div class="field-row" *ngIf="backtestLoading">
+      <small>
+        Backtest em execucao... {{ backtestElapsedSeconds }}s decorridos. Esse processo pode levar alguns minutos.
+      </small>
+    </div>
     <div class="field-row" *ngIf="backtestTotalAvaliados > 0">
       <span>
         Intervalo: {{ backtestFromCutoff }} ate {{ backtestToCutoff }} |
-        padrao: {{ backtestPadraoLinha || 'Todos' }} |
+        padrao: {{ padraoLinha || 'Selecione' }} |
+        <ng-container *ngIf="padraoLinha === 'quase 3 por linha' && padraoLinhaLinha2">
+          linha com 2: {{ padraoLinhaLinha2 }} |
+        </ng-container>
+        <ng-container *ngIf="padraoLinha === '1 linha completa' && padraoLinhaLinha5">
+          linha com 5: {{ padraoLinhaLinha5 }} |
+        </ng-container>
         avaliados: {{ backtestTotalAvaliados }} |
         vencedor dentro das filtradas: {{ backtestWinnerInFilteredCount }} ({{ backtestWinnerInFilteredRate | number:'1.2-2' }}%)
       </span>
@@ -274,7 +312,9 @@
       <button type="button" (click)="closeBacktestAuditModal()">Fechar</button>
     </div>
     <div class="modal-subtitle">
-      Cutoffs: {{ backtestFromCutoff }} ate {{ backtestToCutoff }} | avaliados: {{ backtestTotalAvaliados }} | padrao: {{ backtestPadraoLinha || 'Todos' }}
+      Cutoffs: {{ backtestFromCutoff }} ate {{ backtestToCutoff }} | avaliados: {{ backtestTotalAvaliados }} | padrao: {{ padraoLinha || 'Selecione' }}
+      <ng-container *ngIf="padraoLinha === 'quase 3 por linha' && padraoLinhaLinha2"> | linha com 2: {{ padraoLinhaLinha2 }}</ng-container>
+      <ng-container *ngIf="padraoLinha === '1 linha completa' && padraoLinhaLinha5"> | linha com 5: {{ padraoLinhaLinha5 }}</ng-container>
     </div>
     <div class="table-scroll">
       <table class="audit-table">
@@ -290,7 +330,7 @@
             <th>NAH variacoes</th>
             <th>Bola entram</th>
             <th>Bola saem</th>
-            <th>Hits por modo</th>
+            <th>Posicao por modo</th>
           </tr>
         </thead>
         <tbody>
@@ -305,7 +345,15 @@
             <td>{{ d.nahAllowedCount ?? '-' }}</td>
             <td>{{ d.bolaVezEntramUsadas?.length ? d.bolaVezEntramUsadas.join(',') : '-' }}</td>
             <td>{{ d.bolaVezSaemUsadas?.length ? d.bolaVezSaemUsadas.join(',') : '-' }}</td>
-            <td>{{ formatModeHits(d.modeHits) }}</td>
+            <td>
+              <div *ngIf="d.winnerInFiltered; else semVencedorFiltradas">
+                <div *ngFor="let m of backtestModeSummaries">
+                  {{ selectionModeLabels[m.mode] || m.mode }}:
+                  {{ modePos(d.modeHits, m.mode) ?? ('fora Top-' + backtestTopN) }}
+                </div>
+              </div>
+              <ng-template #semVencedorFiltradas>-</ng-template>
+            </td>
           </tr>
         </tbody>
       </table>

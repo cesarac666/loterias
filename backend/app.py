@@ -36,6 +36,159 @@ if not app.logger.handlers:
     app.logger.addHandler(handler)
 app.logger.setLevel(logging.INFO)
 
+
+def _normalize_filter_selection_mode(mode: str) -> str:
+    raw = (mode or '').strip().lower()
+    if raw in ('primeiras', 'primeiro', 'first', 'firsts'):
+        return 'primeiras'
+    if raw in ('diversidade', 'diversity', 'jaccard'):
+        return 'diversidade'
+    if raw in ('estratificada', 'stratified', 'grupos', 'grupo'):
+        return 'estratificada'
+    if raw in ('distantes', 'distante', 'id', 'ids'):
+        return 'distantes'
+    if raw in ('historica', 'historico', 'historical', 'history', 'score'):
+        return 'historica'
+    return 'random'
+
+
+def _normalize_padrao_linha(padrao: str | None) -> str | None:
+    raw = (padrao or '').strip().lower()
+    if raw in ('', 'selecione', 'todos', 'all'):
+        return None
+    mapping = {
+        'outro': 'outro',
+        '1 linha completa': '1 linha completa',
+        'uma linha completa': '1 linha completa',
+        '3 por linha': '3 por linha',
+        'quase 3 por linha': 'quase 3 por linha',
+    }
+    return mapping.get(raw)
+
+
+def _resolve_bets_csv_by_padrao(padrao_linha: str | None) -> tuple[str, Path]:
+    # Default for backward compatibility with existing flows.
+    normalized = padrao_linha or '3 por linha'
+    file_map = {
+        '3 por linha': 'todasTresPorLinha.csv',
+        'quase 3 por linha': 'todasQuaseTresPorLinha.csv',
+        '1 linha completa': 'todasUmaLinhaCompleta.csv',
+        'outro': 'todasOutro.csv',
+    }
+    filename = file_map.get(normalized)
+    if not filename:
+        raise ValueError(f'padraoLinha invalido: {normalized}')
+    csv_path = ROOT_DIR / filename
+    return normalized, csv_path
+
+
+def _parse_padrao_linha_idx_param(raw_value: str | None) -> tuple[int | None, bool]:
+    raw = (raw_value or '').strip().lower()
+    if raw in ('', 'selecione', 'todos', 'all'):
+        return None, True
+    try:
+        idx = int(raw)
+    except ValueError:
+        return None, False
+    if idx < 1 or idx > 5:
+        return None, False
+    return idx, True
+
+
+def _line_counts_from_dezenas(dezenas: list[int]) -> list[int]:
+    lines = [0] * 5
+    for d in dezenas:
+        if 1 <= d <= 25:
+            lines[(d - 1) // 5] += 1
+    return lines
+
+
+def _matches_padrao_subfiltros(
+    *,
+    lines: list[int],
+    padrao_linha: str | None,
+    linha_com_2: int | None,
+    linha_com_5: int | None,
+) -> bool:
+    if padrao_linha == 'quase 3 por linha' and linha_com_2 is not None:
+        return lines[linha_com_2 - 1] == 2
+    if padrao_linha == '1 linha completa' and linha_com_5 is not None:
+        return lines[linha_com_5 - 1] == 5
+    return True
+
+
+def _build_overlap_profile(hist_rows: list[dict]) -> tuple[Counter, int]:
+    overlap_counts: Counter = Counter()
+    prev_draw: set[int] | None = None
+    total = 0
+    for row in hist_rows:
+        curr = {int(row[f'n{i}']) for i in range(1, 16)}
+        if prev_draw is not None:
+            overlap_counts[len(curr & prev_draw)] += 1
+            total += 1
+        prev_draw = curr
+    return overlap_counts, total
+
+
+def _historical_sum_stats(hist_rows: list[dict]) -> tuple[float, float]:
+    if not hist_rows:
+        return 0.0, 1.0
+    sums = [sum(int(row[f'n{i}']) for i in range(1, 16)) for row in hist_rows]
+    mean = sum(sums) / len(sums)
+    var = sum((x - mean) ** 2 for x in sums) / len(sums)
+    std = math.sqrt(var) if var > 0 else 1.0
+    return mean, std
+
+
+def _select_historical_priority(
+    items: list[dict],
+    k: int,
+    *,
+    freq_short: dict[int, int],
+    freq_mid: dict[int, int],
+    freq_long: dict[int, int],
+    last_draw_set: set[int],
+    overlap_counts: Counter,
+    overlap_total: int,
+    sum_mean: float,
+    sum_std: float,
+) -> list[dict]:
+    if not items:
+        return []
+    if k <= 0:
+        return []
+
+    max_short = max(freq_short.values()) or 1
+    max_mid = max(freq_mid.values()) or 1
+    max_long = max(freq_long.values()) or 1
+    overlap_den = overlap_total + 16  # Laplace smoothing (possible overlap 0..15)
+    std = sum_std if sum_std > 0 else 1.0
+
+    scored: list[tuple[float, int, dict]] = []
+    for idx, item in enumerate(items):
+        dezenas = item['dezenas']
+        score_short = sum(freq_short.get(d, 0) / max_short for d in dezenas) / 15.0
+        score_mid = sum(freq_mid.get(d, 0) / max_mid for d in dezenas) / 15.0
+        score_long = sum(freq_long.get(d, 0) / max_long for d in dezenas) / 15.0
+        freq_score = 0.50 * score_short + 0.30 * score_mid + 0.20 * score_long
+
+        overlap = len(set(dezenas) & last_draw_set)
+        overlap_prob = (overlap_counts.get(overlap, 0) + 1) / overlap_den
+
+        z = (sum(dezenas) - sum_mean) / std
+        sum_score = math.exp(-0.5 * z * z)
+
+        score = 0.62 * freq_score + 0.23 * overlap_prob + 0.15 * sum_score
+        tie = int(item.get('id') or 0)
+        scored.append((score, tie, {'item': item, 'idx': idx}))
+
+    scored.sort(key=lambda x: (-x[0], x[1], x[2]['idx']))
+    ordered = [entry[2]['item'] for entry in scored]
+    if k >= len(ordered):
+        return ordered
+    return ordered[:k]
+
+
 def get_connection():
     """Create a read-only connection to the SQLite database.
 
@@ -59,6 +212,90 @@ def get_write_connection():
     except sqlite3.OperationalError as exc:
         app.logger.error('Failed to open database %s: %s', DB_PATH, exc)
         return None
+
+
+def _ensure_results_abcd_columns(cur: sqlite3.Cursor) -> bool:
+    try:
+        cols = [row[1] for row in cur.execute("PRAGMA table_info(results)").fetchall()]
+    except Exception:
+        cols = []
+    changed = False
+    if 'abcd_g1' not in cols:
+        cur.execute("ALTER TABLE results ADD COLUMN abcd_g1 INTEGER")
+        changed = True
+    if 'abcd_g2' not in cols:
+        cur.execute("ALTER TABLE results ADD COLUMN abcd_g2 INTEGER")
+        changed = True
+    if 'abcd_g3' not in cols:
+        cur.execute("ALTER TABLE results ADD COLUMN abcd_g3 INTEGER")
+        changed = True
+    if 'abcd_g4' not in cols:
+        cur.execute("ALTER TABLE results ADD COLUMN abcd_g4 INTEGER")
+        changed = True
+    if 'comb_freq' not in cols:
+        cur.execute("ALTER TABLE results ADD COLUMN comb_freq TEXT")
+        changed = True
+    return changed
+
+
+def _recompute_results_abcd_cache(cur: sqlite3.Cursor) -> None:
+    from pipeline_filters import compute_freq_groups, count_groups
+
+    rows = cur.execute(
+        'SELECT concurso, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15 '
+        'FROM results ORDER BY concurso ASC'
+    ).fetchall()
+    if not rows:
+        return
+
+    running_freq = {n: 0 for n in range(1, 26)}
+    updates = []
+    for idx, r in enumerate(rows):
+        cc = int(r['concurso'])
+        dezenas = [int(r[f'n{i}']) for i in range(1, 16)]
+        if idx == 0:
+            updates.append((None, None, None, None, None, cc))
+        else:
+            groups_hist = compute_freq_groups(running_freq)
+            abcd_counts, _ = count_groups(dezenas, groups_hist)
+            comb_freq = f'{abcd_counts[0]},{abcd_counts[1]},{abcd_counts[2]},{abcd_counts[3]}'
+            updates.append((abcd_counts[0], abcd_counts[1], abcd_counts[2], abcd_counts[3], comb_freq, cc))
+        for d in dezenas:
+            running_freq[d] = running_freq.get(d, 0) + 1
+
+    cur.executemany(
+        'UPDATE results SET abcd_g1 = ?, abcd_g2 = ?, abcd_g3 = ?, abcd_g4 = ?, comb_freq = ? WHERE concurso = ?',
+        updates,
+    )
+
+
+def _ensure_results_abcd_cache() -> bool:
+    conn = get_write_connection()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        schema_changed = _ensure_results_abcd_columns(cur)
+        min_row = cur.execute('SELECT MIN(concurso) FROM results').fetchone()
+        min_concurso = int(min_row[0]) if min_row and min_row[0] is not None else None
+        missing = 0
+        if min_concurso is not None:
+            missing = cur.execute(
+                'SELECT COUNT(*) FROM results '
+                'WHERE concurso > ? AND (abcd_g1 IS NULL OR abcd_g2 IS NULL OR abcd_g3 IS NULL OR abcd_g4 IS NULL)'
+                ,
+                (min_concurso,),
+            ).fetchone()[0]
+        should_recompute = schema_changed or (missing > 0)
+        if should_recompute:
+            _recompute_results_abcd_cache(cur)
+            conn.commit()
+        return True
+    except Exception as exc:
+        app.logger.exception('Falha ao atualizar cache ABCD em results: %s', exc)
+        return False
+    finally:
+        conn.close()
 
 
 def _ensure_saved_bets_table(cur: sqlite3.Cursor) -> None:
@@ -1193,12 +1430,47 @@ def list_results():
     impares_param = request.args.get('impares', '')
     pares = _parse_int_list(request.args.getlist('pares') or [pares_param])
     impares = _parse_int_list(request.args.getlist('impares') or [impares_param])
-    # Default Par/Ãmpar as in notebook if none provided
-    if not pares and not impares:
-        pares = {6, 7, 8}
-        impares = {7, 8, 9}
+    # Optional Par/Impar filter: apply only when values are provided.
     concurso_limite = request.args.get('concursoLimite', type=int)
-    padrao_linha = request.args.get('padraoLinha')
+    from selector import compute_number_frequencies
+    from pipeline_filters import compute_freq_groups
+
+    padrao_linha_param = request.args.get('padraoLinha')
+    padrao_linha = _normalize_padrao_linha(padrao_linha_param)
+    if padrao_linha_param and padrao_linha is None:
+        return jsonify({
+            'error': 'padraoLinha invalido',
+            'validos': ['outro', '1 linha completa', '3 por linha', 'quase 3 por linha'],
+        }), 400
+    linha2_param = request.args.get('padraoLinhaLinha2')
+    linha5_param = request.args.get('padraoLinhaLinha5')
+    padrao_linha_linha2, ok_linha2 = _parse_padrao_linha_idx_param(linha2_param)
+    padrao_linha_linha5, ok_linha5 = _parse_padrao_linha_idx_param(linha5_param)
+    if not ok_linha2:
+        return jsonify({'error': 'padraoLinhaLinha2 invalido', 'esperado': 'inteiro de 1 a 5'}), 400
+    if not ok_linha5:
+        return jsonify({'error': 'padraoLinhaLinha5 invalido', 'esperado': 'inteiro de 1 a 5'}), 400
+    if padrao_linha_linha2 is not None and padrao_linha != 'quase 3 por linha':
+        return jsonify({'error': 'padraoLinhaLinha2 so pode ser usado com padraoLinha=\"quase 3 por linha\"'}), 400
+    if padrao_linha_linha5 is not None and padrao_linha != '1 linha completa':
+        return jsonify({'error': 'padraoLinhaLinha5 so pode ser usado com padraoLinha=\"1 linha completa\"'}), 400
+    # ABCD filter: accept combined param (e.g. 1,5,6,3)
+    # or separate params abcdG1..abcdG4.
+    abcd_param = request.args.get('abcd', '').strip()
+    abcd_g1_param = request.args.get('abcdG1', type=int)
+    abcd_g2_param = request.args.get('abcdG2', type=int)
+    abcd_g3_param = request.args.get('abcdG3', type=int)
+    abcd_g4_param = request.args.get('abcdG4', type=int)
+    abcd_filter = None
+    if abcd_param:
+        try:
+            parts = [p.strip() for p in abcd_param.replace(';', ',').split(',') if p.strip()]
+            if len(parts) == 4:
+                abcd_filter = (int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3]))
+        except ValueError:
+            abcd_filter = None
+    elif None not in (abcd_g1_param, abcd_g2_param, abcd_g3_param, abcd_g4_param):
+        abcd_filter = (abcd_g1_param, abcd_g2_param, abcd_g3_param, abcd_g4_param)
     soma_min = request.args.get('somaMin', type=int)
     soma_max = request.args.get('somaMax', type=int)
     if soma_min is not None and soma_max is not None and soma_min > soma_max:
@@ -1224,14 +1496,25 @@ def list_results():
     filtro_paridade = FiltroDezenasParesImpares(pares, impares, ativo=bool(pares or impares))
     filtro_limite = FiltroConcursoLimite(concurso_limite, ativo=concurso_limite is not None)
 
+    _ensure_results_abcd_cache()
+
     conn = get_connection()
     if conn is None:
         app.logger.warning('lotofacil.db not found; returning empty results')
         return jsonify({'error': 'lotofacil.db not found', 'total': 0, 'results': []}), 500
-    cur = conn.execute(
+    select_with_abcd = (
+        'SELECT concurso, data, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, ganhador, '
+        'abcd_g1, abcd_g2, abcd_g3, abcd_g4, comb_freq '
+        'FROM results ORDER BY concurso ASC'
+    )
+    select_basic = (
         'SELECT concurso, data, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, ganhador '
         'FROM results ORDER BY concurso ASC'
     )
+    try:
+        cur = conn.execute(select_with_abcd)
+    except sqlite3.OperationalError:
+        cur = conn.execute(select_basic)
     rows_all = cur.fetchall()
     conn.close()
 
@@ -1252,6 +1535,63 @@ def list_results():
         H = current & prev & prev2
         nah_by_concurso[r['concurso']] = (len(N), len(A), len(H))
 
+    has_abcd_cache = bool(rows_all) and ('abcd_g1' in rows_all[0].keys())
+
+    # Precompute ABCD counts (G1,G2,G3,G4) for each concurso.
+    # Prefer persisted cache from DB and keep dynamic fallback for compatibility.
+    abcd_by_concurso = {}
+    if has_abcd_cache:
+        for r in rows_all:
+            cc = r['concurso']
+            abcd_by_concurso[cc] = (r['abcd_g1'], r['abcd_g2'], r['abcd_g3'], r['abcd_g4'])
+    else:
+        from pipeline_filters import count_groups
+
+        running_freq = {n: 0 for n in range(1, 26)}
+        for idx, r in enumerate(rows_all):
+            cc = r['concurso']
+            if idx == 0:
+                abcd_by_concurso[cc] = (None, None, None, None)
+            else:
+                groups_hist = compute_freq_groups(running_freq)
+                dezenas_cc = _dezenas_from_row(r)
+                abcd_counts, _ = count_groups(dezenas_cc, groups_hist)
+                abcd_by_concurso[cc] = tuple(abcd_counts)
+            for d in _dezenas_from_row(r):
+                running_freq[d] = running_freq.get(d, 0) + 1
+
+    # Build frequency groups snapshot for requested cutoff (or latest).
+    abcd_frequency_cutoff = None
+    abcd_frequency_rows = []
+    hist_for_cutoff = rows_all if concurso_limite is None else [r for r in rows_all if r['concurso'] <= concurso_limite]
+    if hist_for_cutoff:
+        cutoff_usado = int(hist_for_cutoff[-1]['concurso'])
+        freq_cutoff = compute_number_frequencies(hist_for_cutoff)
+        groups_cutoff = compute_freq_groups(freq_cutoff)
+        grupo_por_dezena = {}
+        for group_name in ('G1', 'G2', 'G3', 'G4'):
+            for dezena in groups_cutoff[group_name]:
+                grupo_por_dezena[int(dezena)] = group_name
+        abcd_frequency_rows = [
+            {
+                'numero': n,
+                'frequencia': int(freq_cutoff.get(n, 0)),
+                'grupo': grupo_por_dezena.get(n, '-'),
+            }
+            for n in range(1, 26)
+        ]
+        abcd_frequency_cutoff = {
+            'cutoffSolicitado': concurso_limite,
+            'cutoffUsado': cutoff_usado,
+            'totalHistorico': len(hist_for_cutoff),
+            'grupos': {
+                'G1': sorted(list(groups_cutoff['G1'])),
+                'G2': sorted(list(groups_cutoff['G2'])),
+                'G3': sorted(list(groups_cutoff['G3'])),
+                'G4': sorted(list(groups_cutoff['G4'])),
+            },
+        }
+
     # Apply existing filters
     rows = filtro_paridade.apply(rows_all)
     rows = filtro_limite.apply(rows)
@@ -1267,9 +1607,16 @@ def list_results():
             lines[(d-1)//5] += 1
         padrao = classify_pattern(lines)
         n_val, a_val, h_val = nah_by_concurso.get(r['concurso'], (None, None, None))
+        g1_val, g2_val, g3_val, g4_val = abcd_by_concurso.get(r['concurso'], (None, None, None, None))
         if nah_filter and (n_val, a_val, h_val) != nah_filter:
             continue
+        if abcd_filter and (g1_val, g2_val, g3_val, g4_val) != abcd_filter:
+            continue
         if padrao_linha and padrao != padrao_linha:
+            continue
+        if padrao_linha == 'quase 3 por linha' and padrao_linha_linha2 is not None and lines[padrao_linha_linha2 - 1] != 2:
+            continue
+        if padrao_linha == '1 linha completa' and padrao_linha_linha5 is not None and lines[padrao_linha_linha5 - 1] != 5:
             continue
         if soma_min is not None and soma_dezenas < soma_min:
             continue
@@ -1288,6 +1635,10 @@ def list_results():
             'nahN': n_val,
             'nahA': a_val,
             'nahH': h_val,
+            'abcdG1': g1_val,
+            'abcdG2': g2_val,
+            'abcdG3': g3_val,
+            'abcdG4': g4_val,
         })
     results.sort(key=lambda x: x['concurso'], reverse=True)
     total = len(results)
@@ -1324,6 +1675,38 @@ def list_results():
             for key, count in transition_counter.most_common()
         ]
 
+    abcd_transition_summary = []
+    abcd_transition_pairs = []
+    abcd_transition_total = 0
+    abcd_transition_current = None
+    if abcd_filter:
+        abcd_transition_current = list(abcd_filter)
+        abcd_transition_counter = Counter()
+        max_abcd_pairs = request.args.get('abcdTransitionLimit', default=50, type=int)
+        max_abcd_pairs = max(0, min(max_abcd_pairs, 500))
+        for item in results:
+            cur_tuple = (item.get('abcdG1'), item.get('abcdG2'), item.get('abcdG3'), item.get('abcdG4'))
+            if None in cur_tuple or cur_tuple != abcd_filter:
+                continue
+            if concurso_limite is not None and item['concurso'] + 1 > concurso_limite:
+                continue
+            next_tuple = abcd_by_concurso.get(item['concurso'] + 1)
+            if not next_tuple or None in next_tuple:
+                continue
+            abcd_transition_counter[next_tuple] += 1
+            abcd_transition_total += 1
+            if max_abcd_pairs and len(abcd_transition_pairs) < max_abcd_pairs:
+                abcd_transition_pairs.append({
+                    'ccCurrent': item['concurso'],
+                    'ccNext': item['concurso'] + 1,
+                    'currentAbcd': list(cur_tuple),
+                    'nextAbcd': list(next_tuple),
+                })
+        abcd_transition_summary = [
+            {'abcd': list(key), 'count': count}
+            for key, count in abcd_transition_counter.most_common()
+        ]
+
     return jsonify({
         'total': total,
         'results': results[:500],
@@ -1331,6 +1714,12 @@ def list_results():
         'nahTransitionSummary': nah_transition_summary,
         'nahTransitionTotal': nah_transition_total,
         'nahTransitionPairs': nah_transition_pairs,
+        'abcdTransitionCurrent': abcd_transition_current,
+        'abcdTransitionSummary': abcd_transition_summary,
+        'abcdTransitionTotal': abcd_transition_total,
+        'abcdTransitionPairs': abcd_transition_pairs,
+        'abcdFrequencyCutoff': abcd_frequency_cutoff,
+        'abcdFrequencyRows': abcd_frequency_rows,
     })
 
 
@@ -1513,13 +1902,64 @@ def selecionar_por_filtros():
         soma_min, soma_max = soma_max, soma_min
     aplicar_pi = _bool('aplicarPI', True)
     limit = request.args.get('limit', default=200, type=int)
-    selection_mode = (request.args.get('selectionMode') or 'random').strip().lower()
+    selection_mode = _normalize_filter_selection_mode(request.args.get('selectionMode') or 'random')
     selection_seed = request.args.get('selectionSeed', default=None, type=int)
+    padrao_linha_param = request.args.get('padraoLinha')
+    padrao_linha = _normalize_padrao_linha(padrao_linha_param)
+    if padrao_linha_param and padrao_linha is None:
+        return jsonify({
+            'error': 'padraoLinha invalido',
+            'validos': ['outro', '1 linha completa', '3 por linha', 'quase 3 por linha'],
+        }), 400
+    try:
+        padrao_linha_base, csv_path = _resolve_bets_csv_by_padrao(padrao_linha)
+    except ValueError:
+        return jsonify({
+            'error': 'padraoLinha invalido',
+            'validos': ['outro', '1 linha completa', '3 por linha', 'quase 3 por linha'],
+        }), 400
+    if not csv_path.exists():
+        return jsonify({
+            'error': 'arquivo base nao encontrado para padraoLinha',
+            'padraoLinha': padrao_linha_base,
+            'arquivoEsperado': str(csv_path),
+        }), 400
+    linha2_param = request.args.get('padraoLinhaLinha2')
+    linha5_param = request.args.get('padraoLinhaLinha5')
+    padrao_linha_linha2, ok_linha2 = _parse_padrao_linha_idx_param(linha2_param)
+    padrao_linha_linha5, ok_linha5 = _parse_padrao_linha_idx_param(linha5_param)
+    if not ok_linha2:
+        return jsonify({'error': 'padraoLinhaLinha2 invalido', 'esperado': 'inteiro de 1 a 5'}), 400
+    if not ok_linha5:
+        return jsonify({'error': 'padraoLinhaLinha5 invalido', 'esperado': 'inteiro de 1 a 5'}), 400
+    if padrao_linha_linha2 is not None and padrao_linha_base != 'quase 3 por linha':
+        return jsonify({'error': 'padraoLinhaLinha2 so pode ser usado com padraoLinha=\"quase 3 por linha\"'}), 400
+    if padrao_linha_linha5 is not None and padrao_linha_base != '1 linha completa':
+        return jsonify({'error': 'padraoLinhaLinha5 so pode ser usado com padraoLinha=\"1 linha completa\"'}), 400
 
-    col_min = _parse_vec(request.args.get('colMin', ''), 5) or [2, 1, 1, 1, 1]
-    col_max = _parse_vec(request.args.get('colMax', ''), 5) or [5, 5, 4, 5, 5]
-    abcd_min = _parse_vec(request.args.get('abcdMin', ''), 4) or [0, 2, 4, 0]
-    abcd_max = _parse_vec(request.args.get('abcdMax', ''), 4) or [3, 8, 10, 5]
+    col_min_param = request.args.get('colMin', '')
+    col_max_param = request.args.get('colMax', '')
+    abcd_min_param = request.args.get('abcdMin', '')
+    abcd_max_param = request.args.get('abcdMax', '')
+
+    col_min_parsed = _parse_vec(col_min_param, 5)
+    col_max_parsed = _parse_vec(col_max_param, 5)
+    abcd_min_parsed = _parse_vec(abcd_min_param, 4)
+    abcd_max_parsed = _parse_vec(abcd_max_param, 4)
+
+    if col_min_param and col_min_parsed is None:
+        return jsonify({'error': 'colMin invalido', 'esperado': '5 inteiros separados por virgula'}), 400
+    if col_max_param and col_max_parsed is None:
+        return jsonify({'error': 'colMax invalido', 'esperado': '5 inteiros separados por virgula'}), 400
+    if abcd_min_param and abcd_min_parsed is None:
+        return jsonify({'error': 'abcdMin invalido', 'esperado': '4 inteiros separados por virgula'}), 400
+    if abcd_max_param and abcd_max_parsed is None:
+        return jsonify({'error': 'abcdMax invalido', 'esperado': '4 inteiros separados por virgula'}), 400
+
+    col_min = col_min_parsed or [2, 1, 1, 1, 1]
+    col_max = col_max_parsed or [5, 5, 4, 5, 5]
+    abcd_min = abcd_min_parsed or [0, 2, 4, 0]
+    abcd_max = abcd_max_parsed or [3, 8, 10, 5]
     # bola-da-vez lists (optional overrides from query)
     entram_list = _parse_csv_ints(request.args.get('bolaVezEntram', ''))
     saem_list = _parse_csv_ints(request.args.get('bolaVezSaem', ''))
@@ -1529,13 +1969,21 @@ def selecionar_por_filtros():
     pares = _parse_int_list(request.args.getlist('pares') or [pares_param])
     impares = _parse_int_list(request.args.getlist('impares') or [impares_param])
 
-    # Load bets (3 por linha)
-    csv_path = Path(__file__).resolve().parent.parent / 'todasTresPorLinha.csv'
+    # Load bets for selected visual pattern base.
     with csv_path.open(newline='') as f:
         reader = csv.DictReader(f)
         bets = []
         for idx, row in enumerate(reader, start=1):
-            data_row = {f'n{i}': int(row[f'B{i}']) for i in range(1, 16)}
+            dezenas = [int(row[f'B{i}']) for i in range(1, 16)]
+            lines = _line_counts_from_dezenas(dezenas)
+            if not _matches_padrao_subfiltros(
+                lines=lines,
+                padrao_linha=padrao_linha_base,
+                linha_com_2=padrao_linha_linha2,
+                linha_com_5=padrao_linha_linha5,
+            ):
+                continue
+            data_row = {f'n{i}': dezenas[i - 1] for i in range(1, 16)}
             data_row['concurso'] = idx
             bets.append(data_row)
 
@@ -1571,10 +2019,15 @@ def selecionar_por_filtros():
 
     # Build frequency groups from historical results
     freqs = compute_number_frequencies(hist)
+    freqs_short = compute_number_frequencies(hist, last_n=30)
+    freqs_mid = compute_number_frequencies(hist, last_n=120)
     groups = compute_freq_groups(freqs)
+    overlap_counts, overlap_total = _build_overlap_profile(hist)
+    sum_mean, sum_std = _historical_sum_stats(hist)
 
     # NAH mapping based on last three results up to cutoff
     last = dezenas_from_row(hist[-1])
+    last_draw_set = set(last)
     prev1 = dezenas_from_row(hist[-2])
     prev2 = dezenas_from_row(hist[-3])
     # NAH base for last result
@@ -1753,19 +2206,36 @@ def selecionar_por_filtros():
     filtered_total = len(filtradas)
     selected = filtradas
     if limit and filtered_total > limit:
-        if selection_mode in ('primeiras', 'primeiro', 'first', 'firsts'):
+        if selection_mode == 'primeiras':
             selected = _select_first(filtradas, limit)
-        elif selection_mode in ('diversidade', 'diversity', 'jaccard'):
+        elif selection_mode == 'diversidade':
             selected = _select_diverse(filtradas, limit)
-        elif selection_mode in ('estratificada', 'stratified', 'grupos', 'grupo'):
+        elif selection_mode == 'estratificada':
             selected = _select_stratified(filtradas, limit)
-        elif selection_mode in ('distantes', 'distante', 'id', 'ids'):
+        elif selection_mode == 'distantes':
             selected = _select_distant(filtradas, limit)
+        elif selection_mode == 'historica':
+            selected = _select_historical_priority(
+                filtradas,
+                limit,
+                freq_short=freqs_short,
+                freq_mid=freqs_mid,
+                freq_long=freqs,
+                last_draw_set=last_draw_set,
+                overlap_counts=overlap_counts,
+                overlap_total=overlap_total,
+                sum_mean=sum_mean,
+                sum_std=sum_std,
+            )
         else:
             selected = _select_random(filtradas, limit)
 
     return jsonify({
         'totalBase': len(bets),
+        'padraoLinha': padrao_linha_base,
+        'padraoLinhaLinha2': padrao_linha_linha2,
+        'padraoLinhaLinha5': padrao_linha_linha5,
+        'baseCsv': csv_path.name,
         'cutoff': cutoff,
         'nahBase': nah_base,
         'nahAllowed': sorted(list(allowed_nah)) if aplicar_nah else [],
@@ -1889,52 +2359,48 @@ def backtest_selecionar_por_filtros():
             items.append(t)
         return items
 
-    def _normalize_selection_mode(mode: str) -> str:
-        raw = (mode or '').strip().lower()
-        if raw in ('primeiras', 'primeiro', 'first', 'firsts'):
-            return 'primeiras'
-        if raw in ('diversidade', 'diversity', 'jaccard'):
-            return 'diversidade'
-        if raw in ('estratificada', 'stratified', 'grupos', 'grupo'):
-            return 'estratificada'
-        if raw in ('distantes', 'distante', 'id', 'ids'):
-            return 'distantes'
-        return 'random'
-
     def _select_first(items: list[dict], k: int) -> list[dict]:
+        if not items or k <= 0:
+            return []
         if k >= len(items):
             return items
         return items[:k]
 
     def _select_random(items: list[dict], k: int, rng: random.Random) -> list[dict]:
+        if not items or k <= 0:
+            return []
         if k >= len(items):
-            return items
+            shuffled = list(items)
+            rng.shuffle(shuffled)
+            return shuffled
         return rng.sample(items, k)
 
     def _select_diverse(items: list[dict], k: int, freqs: dict, rng: random.Random) -> list[dict]:
-        if k >= len(items):
-            return items
+        if not items or k <= 0:
+            return []
+        target = min(k, len(items))
         scored = []
         for item in items:
             sc = score_bet(item['dezenas'], freqs)
             scored.append((item['dezenas'], sc))
-        pool_size = max(k * 5, 200)
-        selected_pairs = select_diverse(scored, k=k, greedy_pool=pool_size)
+        pool_size = max(target * 5, 200)
+        selected_pairs = select_diverse(scored, k=target, greedy_pool=pool_size)
         index = {tuple(it['dezenas']): it for it in items}
         selected = []
         for dezenas, _ in selected_pairs:
             it = index.get(tuple(dezenas))
             if it is not None:
                 selected.append(it)
-        if len(selected) < k:
+        if len(selected) < target:
             remaining = [it for it in items if it not in selected]
             rng.shuffle(remaining)
-            selected.extend(remaining[: k - len(selected)])
+            selected.extend(remaining[: target - len(selected)])
         return selected
 
     def _select_stratified(items: list[dict], k: int, groups: dict, rng: random.Random) -> list[dict]:
-        if k >= len(items):
-            return items
+        if not items or k <= 0:
+            return []
+        target = min(k, len(items))
         buckets = defaultdict(list)
         for item in items:
             cnts, _ = count_groups(item['dezenas'], groups)
@@ -1943,11 +2409,11 @@ def backtest_selecionar_por_filtros():
         total = len(items)
         bucket_info = []
         for key, bucket in buckets.items():
-            exact = (len(bucket) * k) / total
+            exact = (len(bucket) * target) / total
             base = int(math.floor(exact))
             bucket_info.append([key, base, exact - base])
 
-        remaining = k - sum(info[1] for info in bucket_info)
+        remaining = target - sum(info[1] for info in bucket_info)
         bucket_info.sort(key=lambda x: x[2], reverse=True)
         for idx in range(remaining):
             bucket_info[idx % len(bucket_info)][1] += 1
@@ -1961,8 +2427,8 @@ def backtest_selecionar_por_filtros():
             selected.extend(bucket[:take])
             leftovers.extend(bucket[take:])
 
-        if len(selected) < k and leftovers:
-            need = k - len(selected)
+        if len(selected) < target and leftovers:
+            need = target - len(selected)
             if need >= len(leftovers):
                 selected.extend(leftovers)
             else:
@@ -1970,11 +2436,12 @@ def backtest_selecionar_por_filtros():
         return selected
 
     def _select_distant(items: list[dict], k: int) -> list[dict]:
-        if k >= len(items):
-            return items
+        if not items or k <= 0:
+            return []
+        target = min(k, len(items))
         ordered = sorted(items, key=lambda it: (it.get('id') or 0))
-        step = (len(ordered) - 1) / (k - 1) if k > 1 else 0
-        indices = [int(math.floor(i * step)) for i in range(k)]
+        step = (len(ordered) - 1) / (target - 1) if target > 1 else 0
+        indices = [int(math.floor(i * step)) for i in range(target)]
         return [ordered[i] for i in indices]
 
     cutoff = request.args.get('cutoff', type=int)
@@ -1984,10 +2451,12 @@ def backtest_selecionar_por_filtros():
     aplicar_nah = _bool('aplicarNAH', True)
     nah_var = request.args.get('nahVar', default=2, type=int)
     nah_list_param = request.args.get('nahList', '')
-    nah_list = _parse_nah_list(nah_list_param)
-    nah_list_provided = bool(nah_list_param.strip())
-    if nah_list_provided:
-        aplicar_nah = True
+    nah_list_input = _parse_nah_list(nah_list_param)
+    nah_list_provided_input = bool(nah_list_param.strip())
+    # Backtest rule: NAH is always derived from nahBase of each cutoff.
+    # Any provided nahList is ignored in this endpoint.
+    nah_list: list[tuple[int, int, int]] = []
+    nah_list_provided = False
     aplicar_abcd = _bool('aplicarABCD', True)
     aplicar_tres = _bool('aplicarTresConsec', True)
     aplicar_bola_vez = _bool('aplicarBolaVez', False)
@@ -2005,10 +2474,29 @@ def backtest_selecionar_por_filtros():
         soma_min, soma_max = soma_max, soma_min
     aplicar_pi = _bool('aplicarPI', True)
 
-    col_min = _parse_vec(request.args.get('colMin', ''), 5) or [2, 1, 1, 1, 1]
-    col_max = _parse_vec(request.args.get('colMax', ''), 5) or [5, 5, 4, 5, 5]
-    abcd_min = _parse_vec(request.args.get('abcdMin', ''), 4) or [0, 2, 4, 0]
-    abcd_max = _parse_vec(request.args.get('abcdMax', ''), 4) or [3, 8, 10, 5]
+    col_min_param = request.args.get('colMin', '')
+    col_max_param = request.args.get('colMax', '')
+    abcd_min_param = request.args.get('abcdMin', '')
+    abcd_max_param = request.args.get('abcdMax', '')
+
+    col_min_parsed = _parse_vec(col_min_param, 5)
+    col_max_parsed = _parse_vec(col_max_param, 5)
+    abcd_min_parsed = _parse_vec(abcd_min_param, 4)
+    abcd_max_parsed = _parse_vec(abcd_max_param, 4)
+
+    if col_min_param and col_min_parsed is None:
+        return jsonify({'error': 'colMin invalido', 'esperado': '5 inteiros separados por virgula'}), 400
+    if col_max_param and col_max_parsed is None:
+        return jsonify({'error': 'colMax invalido', 'esperado': '5 inteiros separados por virgula'}), 400
+    if abcd_min_param and abcd_min_parsed is None:
+        return jsonify({'error': 'abcdMin invalido', 'esperado': '4 inteiros separados por virgula'}), 400
+    if abcd_max_param and abcd_max_parsed is None:
+        return jsonify({'error': 'abcdMax invalido', 'esperado': '4 inteiros separados por virgula'}), 400
+
+    col_min = col_min_parsed or [2, 1, 1, 1, 1]
+    col_max = col_max_parsed or [5, 5, 4, 5, 5]
+    abcd_min = abcd_min_parsed or [0, 2, 4, 0]
+    abcd_max = abcd_max_parsed or [3, 8, 10, 5]
     entram_list_base = _parse_csv_ints(request.args.get('bolaVezEntram', ''))
     saem_list_base = _parse_csv_ints(request.args.get('bolaVezSaem', ''))
 
@@ -2016,21 +2504,38 @@ def backtest_selecionar_por_filtros():
     impares_param = request.args.get('impares', '')
     pares = _parse_int_list(request.args.getlist('pares') or [pares_param])
     impares = _parse_int_list(request.args.getlist('impares') or [impares_param])
-    padrao_linha_param = (request.args.get('padraoLinha') or '').strip()
-    padrao_linha_map = {
-        'outro': 'outro',
-        '1 linha completa': '1 linha completa',
-        '3 por linha': '3 por linha',
-        'quase 3 por linha': 'quase 3 por linha',
-    }
-    padrao_linha = None
-    if padrao_linha_param and padrao_linha_param.lower() not in ('todos', 'all'):
-        padrao_linha = padrao_linha_map.get(padrao_linha_param.lower())
-        if not padrao_linha:
-            return jsonify({
-                'error': 'padraoLinha invalido',
-                'validos': ['outro', '1 linha completa', '3 por linha', 'quase 3 por linha'],
-            }), 400
+    padrao_linha_param = request.args.get('padraoLinha')
+    padrao_linha = _normalize_padrao_linha(padrao_linha_param)
+    if padrao_linha_param and padrao_linha is None:
+        return jsonify({
+            'error': 'padraoLinha invalido',
+            'validos': ['outro', '1 linha completa', '3 por linha', 'quase 3 por linha'],
+        }), 400
+    try:
+        padrao_linha_base, csv_path = _resolve_bets_csv_by_padrao(padrao_linha)
+    except ValueError:
+        return jsonify({
+            'error': 'padraoLinha invalido',
+            'validos': ['outro', '1 linha completa', '3 por linha', 'quase 3 por linha'],
+        }), 400
+    if not csv_path.exists():
+        return jsonify({
+            'error': 'arquivo base nao encontrado para padraoLinha',
+            'padraoLinha': padrao_linha_base,
+            'arquivoEsperado': str(csv_path),
+        }), 400
+    linha2_param = request.args.get('padraoLinhaLinha2')
+    linha5_param = request.args.get('padraoLinhaLinha5')
+    padrao_linha_linha2, ok_linha2 = _parse_padrao_linha_idx_param(linha2_param)
+    padrao_linha_linha5, ok_linha5 = _parse_padrao_linha_idx_param(linha5_param)
+    if not ok_linha2:
+        return jsonify({'error': 'padraoLinhaLinha2 invalido', 'esperado': 'inteiro de 1 a 5'}), 400
+    if not ok_linha5:
+        return jsonify({'error': 'padraoLinhaLinha5 invalido', 'esperado': 'inteiro de 1 a 5'}), 400
+    if padrao_linha_linha2 is not None and padrao_linha_base != 'quase 3 por linha':
+        return jsonify({'error': 'padraoLinhaLinha2 so pode ser usado com padraoLinha=\"quase 3 por linha\"'}), 400
+    if padrao_linha_linha5 is not None and padrao_linha_base != '1 linha completa':
+        return jsonify({'error': 'padraoLinhaLinha5 so pode ser usado com padraoLinha=\"1 linha completa\"'}), 400
 
     backtest_window = request.args.get('backtestWindow', default=60, type=int)
     backtest_window = max(1, backtest_window or 60)
@@ -2041,25 +2546,33 @@ def backtest_selecionar_por_filtros():
     backtest_from = request.args.get('backtestFrom', type=int)
     backtest_to = request.args.get('backtestTo', type=int)
 
-    modes_raw = request.args.get('backtestModes', 'primeiras,diversidade,estratificada,distantes,random')
+    modes_raw = request.args.get('backtestModes', 'primeiras,diversidade,estratificada,distantes,historica,random')
     requested_modes = []
     for part in modes_raw.replace(';', ',').split(','):
-        mode = _normalize_selection_mode(part)
+        mode = _normalize_filter_selection_mode(part)
         if mode and mode not in requested_modes:
             requested_modes.append(mode)
     if not requested_modes:
-        requested_modes = ['primeiras', 'diversidade', 'estratificada', 'distantes', 'random']
+        requested_modes = ['primeiras', 'diversidade', 'estratificada', 'distantes', 'historica', 'random']
 
     selection_seed = request.args.get('selectionSeed', default=None, type=int)
     if selection_seed is None:
         selection_seed = 12345
 
-    csv_path = Path(__file__).resolve().parent.parent / 'todasTresPorLinha.csv'
     with csv_path.open(newline='') as f:
         reader = csv.DictReader(f)
         bets = []
         for idx, row in enumerate(reader, start=1):
-            data_row = {f'n{i}': int(row[f'B{i}']) for i in range(1, 16)}
+            dezenas = [int(row[f'B{i}']) for i in range(1, 16)]
+            lines = _line_counts_from_dezenas(dezenas)
+            if not _matches_padrao_subfiltros(
+                lines=lines,
+                padrao_linha=padrao_linha_base,
+                linha_com_2=padrao_linha_linha2,
+                linha_com_5=padrao_linha_linha5,
+            ):
+                continue
+            data_row = {f'n{i}': dezenas[i - 1] for i in range(1, 16)}
             data_row['concurso'] = idx
             bets.append(data_row)
 
@@ -2090,18 +2603,75 @@ def backtest_selecionar_por_filtros():
     min_cutoff = concursos[2]
     max_cutoff = concursos[-2]
 
+    def _next_padrao_info_for_cutoff(cc: int) -> tuple[str | None, int | None, int | None]:
+        idx = idx_by_concurso.get(cc)
+        if idx is None or (idx + 1) >= len(rows):
+            return None, None, None
+        next_row = rows[idx + 1]
+        next_lines = [0] * 5
+        for i in range(1, 16):
+            d = int(next_row[f'n{i}'])
+            next_lines[(d - 1) // 5] += 1
+        padrao = classify_pattern(next_lines)
+        linha2 = None
+        linha5 = None
+        if padrao == 'quase 3 por linha' and next_lines.count(2) == 1:
+            linha2 = next_lines.index(2) + 1
+        if padrao == '1 linha completa' and next_lines.count(5) == 1:
+            linha5 = next_lines.index(5) + 1
+        return padrao, linha2, linha5
+
+    base_cutoffs = []
+    for cc in concursos:
+        if cc < min_cutoff or cc > max_cutoff:
+            continue
+        if (cc + 1) not in concurso_set:
+            continue
+        base_cutoffs.append(cc)
+
+    if padrao_linha:
+        filtered_cutoffs = []
+        for cc in base_cutoffs:
+            next_padrao, next_linha2, next_linha5 = _next_padrao_info_for_cutoff(cc)
+            if next_padrao != padrao_linha:
+                continue
+            if padrao_linha == 'quase 3 por linha' and padrao_linha_linha2 is not None and next_linha2 != padrao_linha_linha2:
+                continue
+            if padrao_linha == '1 linha completa' and padrao_linha_linha5 is not None and next_linha5 != padrao_linha_linha5:
+                continue
+            filtered_cutoffs.append(cc)
+        base_cutoffs = filtered_cutoffs
+
+    if not base_cutoffs:
+        return jsonify({'error': 'nenhum cutoff valido para backtest no padrao informado'}), 400
+
     if backtest_to is None:
-        backtest_to = cutoff if cutoff is not None else max_cutoff
+        backtest_to = cutoff if cutoff is not None else base_cutoffs[-1]
     backtest_to = max(min_cutoff, min(max_cutoff, int(backtest_to)))
 
-    if backtest_from is None:
-        backtest_from = backtest_to - (backtest_window - 1) * backtest_step
-    backtest_from = max(min_cutoff, int(backtest_from))
+    if padrao_linha:
+        eligible = [cc for cc in base_cutoffs if cc <= backtest_to]
+        if backtest_from is not None:
+            backtest_from = max(min_cutoff, int(backtest_from))
+            eligible = [cc for cc in eligible if cc >= backtest_from]
+        if not eligible:
+            return jsonify({'error': 'nenhum cutoff valido para backtest no intervalo informado'}), 400
 
-    cutoffs = []
-    for cc in range(backtest_from, backtest_to + 1, backtest_step):
-        if cc in concurso_set and (cc + 1) in concurso_set:
-            cutoffs.append(cc)
+        if backtest_from is None:
+            sampled_desc = list(reversed(eligible))[::backtest_step]
+            cutoffs = sorted(sampled_desc[:backtest_window])
+            backtest_from = cutoffs[0]
+        else:
+            cutoffs = eligible[::backtest_step]
+    else:
+        if backtest_from is None:
+            backtest_from = backtest_to - (backtest_window - 1) * backtest_step
+        backtest_from = max(min_cutoff, int(backtest_from))
+
+        cutoffs = []
+        for cc in range(backtest_from, backtest_to + 1, backtest_step):
+            if cc in concurso_set and (cc + 1) in concurso_set:
+                cutoffs.append(cc)
 
     if not cutoffs:
         return jsonify({'error': 'nenhum cutoff valido para backtest'}), 400
@@ -2140,7 +2710,13 @@ def backtest_selecionar_por_filtros():
         for d in next_dezenas_list:
             next_lines[(d - 1) // 5] += 1
         next_padrao_linha = classify_pattern(next_lines)
+        next_linha2 = next_lines.index(2) + 1 if next_lines.count(2) == 1 else None
+        next_linha5 = next_lines.index(5) + 1 if next_lines.count(5) == 1 else None
         if padrao_linha and next_padrao_linha != padrao_linha:
+            continue
+        if padrao_linha == 'quase 3 por linha' and padrao_linha_linha2 is not None and next_linha2 != padrao_linha_linha2:
+            continue
+        if padrao_linha == '1 linha completa' and padrao_linha_linha5 is not None and next_linha5 != padrao_linha_linha5:
             continue
 
         # Backtest rule: when Bola da Vez is enabled, recalculate lists for each cutoff.
@@ -2152,9 +2728,14 @@ def backtest_selecionar_por_filtros():
             saem_list = list(saem_list_base)
 
         freqs = compute_number_frequencies(hist)
+        freqs_short = compute_number_frequencies(hist, last_n=30)
+        freqs_mid = compute_number_frequencies(hist, last_n=120)
         groups = compute_freq_groups(freqs)
+        overlap_counts, overlap_total = _build_overlap_profile(hist)
+        sum_mean, sum_std = _historical_sum_stats(hist)
 
         last = dezenas_from_row(hist[-1])
+        last_draw_set = set(last)
         prev1 = dezenas_from_row(hist[-2])
         prev2 = dezenas_from_row(hist[-3])
         NS_to_N, N_to_A, AH_to_H = compute_mapping_sets(last, prev1, prev2)
@@ -2163,10 +2744,7 @@ def backtest_selecionar_por_filtros():
         H_base = len(set(last) & set(prev1) & set(prev2))
 
         if aplicar_nah:
-            if nah_list_provided:
-                allowed_nah = set(nah_list)
-            else:
-                allowed_nah = set(generate_nah_variations((N_base, A_base, H_base), var_range=nah_var))
+            allowed_nah = set(generate_nah_variations((N_base, A_base, H_base), var_range=nah_var))
         else:
             allowed_nah = set()
 
@@ -2230,6 +2808,9 @@ def backtest_selecionar_por_filtros():
             winner_in_filtered_count += 1
 
         mode_hits: dict[str, int | None] = {}
+        historical_order_full: list[dict] | None = None
+        historical_winner_pos: int | None = None
+        mode_full_pos_cache: dict[str, int | None] = {}
 
         for mode_idx, mode in enumerate(requested_modes):
             rng = random.Random(selection_seed + cutoff_atual * 131 + mode_idx * 17)
@@ -2241,6 +2822,26 @@ def backtest_selecionar_por_filtros():
                 selected = _select_stratified(filtradas, backtest_top_n, groups, rng)
             elif mode == 'distantes':
                 selected = _select_distant(filtradas, backtest_top_n)
+            elif mode == 'historica':
+                if historical_order_full is None:
+                    historical_order_full = _select_historical_priority(
+                        filtradas,
+                        len(filtradas),
+                        freq_short=freqs_short,
+                        freq_mid=freqs_mid,
+                        freq_long=freqs,
+                        last_draw_set=last_draw_set,
+                        overlap_counts=overlap_counts,
+                        overlap_total=overlap_total,
+                        sum_mean=sum_mean,
+                        sum_std=sum_std,
+                    )
+                    if winner_in_filtered:
+                        for pos, item in enumerate(historical_order_full, start=1):
+                            if tuple(sorted(item['dezenas'])) == next_dezenas:
+                                historical_winner_pos = pos
+                                break
+                selected = historical_order_full[:backtest_top_n]
             else:
                 selected = _select_random(filtradas, backtest_top_n, rng)
 
@@ -2263,12 +2864,45 @@ def backtest_selecionar_por_filtros():
                 if stats['worst_pos'] is None or selected_pos > stats['worst_pos']:
                     stats['worst_pos'] = selected_pos
 
-            mode_hits[mode] = selected_pos
+            display_pos = selected_pos
+            if mode == 'primeiras':
+                # In "primeiras", absolute position equals index in filtered queue.
+                display_pos = winner_filtered_pos
+            elif mode == 'historica':
+                # Show absolute rank in historical ordering, even outside Top-N.
+                display_pos = historical_winner_pos
+            elif winner_in_filtered and selected_pos is None:
+                cached = mode_full_pos_cache.get(mode)
+                if cached is None:
+                    rng_full = random.Random(selection_seed + cutoff_atual * 131 + mode_idx * 17)
+                    if mode == 'diversidade':
+                        # Full ranking for diversidade can be very expensive.
+                        # Probe up to a conservative ceiling to keep backtest runtime acceptable.
+                        probe_limit = min(len(filtradas), max(backtest_top_n, 200))
+                        ordered_full = _select_diverse(filtradas, probe_limit, freqs, rng_full)
+                    elif mode == 'estratificada':
+                        ordered_full = _select_stratified(filtradas, len(filtradas), groups, rng_full)
+                    elif mode == 'distantes':
+                        ordered_full = _select_distant(filtradas, len(filtradas))
+                    else:
+                        ordered_full = _select_random(filtradas, len(filtradas), rng_full)
+                    full_pos = None
+                    for pos, item in enumerate(ordered_full, start=1):
+                        if tuple(sorted(item['dezenas'])) == next_dezenas:
+                            full_pos = pos
+                            break
+                    mode_full_pos_cache[mode] = full_pos
+                    cached = full_pos
+                display_pos = cached
+
+            mode_hits[mode] = display_pos
 
         details.append({
             'cutoff': cutoff_atual,
             'nextConcurso': cutoff_atual + 1,
             'nextPadraoLinha': next_padrao_linha,
+            'nextPadraoLinhaLinha2': next_linha2,
+            'nextPadraoLinhaLinha5': next_linha5,
             'filteredTotal': len(filtradas),
             'winnerInFiltered': winner_in_filtered,
             'winnerFilteredPos': winner_filtered_pos,
@@ -2307,10 +2941,46 @@ def backtest_selecionar_por_filtros():
     return jsonify({
         'fromCutoff': min(item['cutoff'] for item in details),
         'toCutoff': max(item['cutoff'] for item in details),
-        'padraoLinha': padrao_linha,
+        'padraoLinha': padrao_linha_base,
+        'padraoLinhaLinha2': padrao_linha_linha2,
+        'padraoLinhaLinha5': padrao_linha_linha5,
+        'baseCsv': csv_path.name,
         'window': backtest_window,
         'step': backtest_step,
         'topN': backtest_top_n,
+        'appliedFilters': {
+            'aplicarPI': aplicar_pi,
+            'aplicarCRE': aplicar_cre,
+            'aplicarSalto': aplicar_salto,
+            'aplicarNAH': aplicar_nah,
+            'nahVar': nah_var,
+            'nahSource': 'nahBase+nahVar',
+            'nahList': [list(item) for item in nah_list],
+            'nahListProvided': nah_list_provided,
+            'nahListIgnoredInBacktest': nah_list_provided_input,
+            'nahListReceived': [list(item) for item in nah_list_input],
+            'aplicarABCD': aplicar_abcd,
+            'aplicarTresConsec': aplicar_tres,
+            'aplicarBolaVez': aplicar_bola_vez,
+            'aplicarLosangoCentro': aplicar_losango,
+            'aplicarOnzeQuinze': aplicar_onze_quinze,
+            'aplicarCountCMinUmQuatro': aplicar_countc_min_um_quatro,
+            'aplicarMaxUmCinco': aplicar_max_um_cinco,
+            'aplicarCountCS': aplicar_countcs,
+            'aplicarCantos': aplicar_cantos,
+            'aplicarDiagonais': aplicar_diagonais,
+            'aplicarSoma': aplicar_soma,
+            'somaMin': soma_min,
+            'somaMax': soma_max,
+            'colMin': col_min,
+            'colMax': col_max,
+            'abcdMin': abcd_min,
+            'abcdMax': abcd_max,
+            'pares': sorted(list(pares)),
+            'impares': sorted(list(impares)),
+            'padraoLinhaLinha2': padrao_linha_linha2,
+            'padraoLinhaLinha5': padrao_linha_linha5,
+        },
         'totalAvaliados': total_avaliados,
         'winnerInFilteredCount': winner_in_filtered_count,
         'winnerInFilteredRate': winner_rate,
@@ -2520,6 +3190,9 @@ def conferir_selecao():
         aplicarCantos = _b('aplicarCantos', False)
         aplicarDiagonais = _b('aplicarDiagonais', False)
         aplicarSoma = _b('aplicarSoma', False)
+        padrao_linha_opt = _normalize_padrao_linha(opts.get('padraoLinha'))
+        padrao_linha_linha2, _ = _parse_padrao_linha_idx_param(str(opts.get('padraoLinhaLinha2') or ''))
+        padrao_linha_linha5, _ = _parse_padrao_linha_idx_param(str(opts.get('padraoLinhaLinha5') or ''))
         colMin = opts.get('colMin') or [2,1,1,1,1]
         colMax = opts.get('colMax') or [5,5,4,5,5]
         abcdMin = opts.get('abcdMin') or [0,2,4,0]
@@ -2596,6 +3269,19 @@ def conferir_selecao():
         except Exception:
             cre_ok = True
         salto_ok = (max_jump(next_dezenas) in (3,4)) if aplicarSalto else True
+        next_lines = _line_counts_from_dezenas(next_dezenas)
+        next_padrao_visual = classify_pattern(next_lines)
+        padrao_ok = True
+        padrao_linha2_ok = True
+        padrao_linha5_ok = True
+        if padrao_linha_opt:
+            padrao_ok = (next_padrao_visual == padrao_linha_opt)
+            if padrao_ok and padrao_linha_opt == 'quase 3 por linha' and padrao_linha_linha2 is not None:
+                padrao_linha2_ok = (next_lines[padrao_linha_linha2 - 1] == 2)
+                padrao_ok = padrao_ok and padrao_linha2_ok
+            if padrao_ok and padrao_linha_opt == '1 linha completa' and padrao_linha_linha5 is not None:
+                padrao_linha5_ok = (next_lines[padrao_linha_linha5 - 1] == 5)
+                padrao_ok = padrao_ok and padrao_linha5_ok
 
         filters_check = {
             'ParImpar': pi_ok,
@@ -2614,7 +3300,12 @@ def conferir_selecao():
             'Cantos': cantos_ok,
             'Diagonais': diagonais_ok,
             'SomaDezenas': soma_ok,
+            'PadraoVisual': padrao_ok,
         }
+        if padrao_linha_opt == 'quase 3 por linha' and padrao_linha_linha2 is not None:
+            filters_check['PadraoVisualLinhaCom2'] = padrao_linha2_ok
+        if padrao_linha_opt == '1 linha completa' and padrao_linha_linha5 is not None:
+            filters_check['PadraoVisualLinhaCom5'] = padrao_linha5_ok
     except Exception:
         next_info = None
         filters_check = None
@@ -2649,6 +3340,8 @@ def update_lotofacil():
     try:
         inserted = update_lotofacil_results()
         count = len(inserted)
+        if count:
+            _ensure_results_abcd_cache()
         if count:
             message = f'{count} concurso(s) atualizado(s): {", ".join(str(item) for item in inserted)}.'
         else:

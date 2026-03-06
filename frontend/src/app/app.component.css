@@ -6,3 +6,14 @@ h1 {
 button {
   margin-top: 10px;
 }
+
+nav a,
+nav a:link,
+nav a:visited {
+  color: #fff;
+}
+
+nav a:hover,
+nav a:focus {
+  color: #e6e6e6;
+}

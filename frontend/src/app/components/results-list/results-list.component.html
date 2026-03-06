@@ -25,12 +25,28 @@
       </div>
 
       <div class="row">
-        <select name="padraoLinha" [(ngModel)]="padraoLinha">
+        <select name="padraoLinha" [(ngModel)]="padraoLinha" (ngModelChange)="onPadraoLinhaChange()">
           <option value="">Todos</option>
           <option value="outro">outro</option>
           <option value="1 linha completa">1 linha completa</option>
           <option value="3 por linha">3 por linha</option>
           <option value="quase 3 por linha">quase 3 por linha</option>
+        </select>
+        <select name="padraoLinhaLinha2" [(ngModel)]="padraoLinhaLinha2" *ngIf="padraoLinha === 'quase 3 por linha'">
+          <option value="">Linha com 2 dezenas</option>
+          <option value="1">Linha 1 (1-5)</option>
+          <option value="2">Linha 2 (6-10)</option>
+          <option value="3">Linha 3 (11-15)</option>
+          <option value="4">Linha 4 (16-20)</option>
+          <option value="5">Linha 5 (21-25)</option>
+        </select>
+        <select name="padraoLinhaLinha5" [(ngModel)]="padraoLinhaLinha5" *ngIf="padraoLinha === '1 linha completa'">
+          <option value="">Linha com 5 dezenas</option>
+          <option value="1">Linha 1 (1-5)</option>
+          <option value="2">Linha 2 (6-10)</option>
+          <option value="3">Linha 3 (11-15)</option>
+          <option value="4">Linha 4 (16-20)</option>
+          <option value="5">Linha 5 (21-25)</option>
         </select>
         <input type="number" name="somaMin" placeholder="Soma min" [(ngModel)]="somaMin" style="width:120px">
         <input type="number" name="somaMax" placeholder="Soma max" [(ngModel)]="somaMax" style="width:120px">
@@ -49,6 +65,22 @@
         <input type="number" name="nahA" placeholder="NAH A" [(ngModel)]="nahA">
         <input type="number" name="nahH" placeholder="NAH H" [(ngModel)]="nahH">
         <button type="submit">Aplicar NAH</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="control-card">
+    <h2 class="section-title">Historico ABCD</h2>
+    <form class="filters" (ngSubmit)="applyAbcdHistory($event)">
+      <div class="row">
+        <input type="number" name="abcdG1" placeholder="ABCD G1" [(ngModel)]="abcdG1">
+        <input type="number" name="abcdG2" placeholder="ABCD G2" [(ngModel)]="abcdG2">
+        <input type="number" name="abcdG3" placeholder="ABCD G3" [(ngModel)]="abcdG3">
+        <input type="number" name="abcdG4" placeholder="ABCD G4" [(ngModel)]="abcdG4">
+        <button type="submit">Aplicar ABCD</button>
+        <button type="button" (click)="openAbcdAuditModal()" [disabled]="!abcdFrequencyRows.length">
+          Auditoria ABCD
+        </button>
       </div>
     </form>
   </section>
@@ -79,6 +111,7 @@
       <th>Impares</th>
       <th>Padrao Linha</th>
       <th>NAH</th>
+      <th>ABCD</th>
       <th>Talao</th>
     </tr>
   </thead>
@@ -92,6 +125,7 @@
       <td>{{ r.qtdImpares }}</td>
       <td>{{ r.padraoLinha }}</td>
       <td>{{ r.nahN ?? '-' }}/{{ r.nahA ?? '-' }}/{{ r.nahH ?? '-' }}</td>
+      <td>{{ r.abcdG1 ?? '-' }}/{{ r.abcdG2 ?? '-' }}/{{ r.abcdG3 ?? '-' }}/{{ r.abcdG4 ?? '-' }}</td>
       <td><button (click)="showTicket(r.dezenas)">Talao</button></td>
     </tr>
   </tbody>
@@ -152,6 +186,84 @@
   </tbody>
 </table>
 
+<div *ngIf="abcdFrequencyCutoff" class="record-count">
+  <strong>Grupos de Frequencia ABCD</strong>
+  <span> | cutoff usado: {{ abcdFrequencyCutoff.cutoffUsado }}</span>
+  <span> | historico: {{ abcdFrequencyCutoff.totalHistorico }}</span>
+</div>
+<table *ngIf="abcdFrequencyCutoff">
+  <thead>
+    <tr>
+      <th>Grupo</th>
+      <th>Dezenas</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>G1</td>
+      <td>{{ abcdFrequencyCutoff.grupos.G1.join(', ') }}</td>
+    </tr>
+    <tr>
+      <td>G2</td>
+      <td>{{ abcdFrequencyCutoff.grupos.G2.join(', ') }}</td>
+    </tr>
+    <tr>
+      <td>G3</td>
+      <td>{{ abcdFrequencyCutoff.grupos.G3.join(', ') }}</td>
+    </tr>
+    <tr>
+      <td>G4</td>
+      <td>{{ abcdFrequencyCutoff.grupos.G4.join(', ') }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div *ngIf="abcdTransitionSummary.length" class="record-count">
+  <strong>Transicao ABCD (atual -> proximo)</strong>
+  <span *ngIf="abcdTransitionCurrent?.length">
+    | atual: {{ abcdTransitionCurrent[0] }}/{{ abcdTransitionCurrent[1] }}/{{ abcdTransitionCurrent[2] }}/{{ abcdTransitionCurrent[3] }}
+  </span>
+  <span *ngIf="abcdTransitionTotal"> | base: {{ abcdTransitionTotal }}</span>
+</div>
+<table *ngIf="abcdTransitionSummary.length">
+  <thead>
+    <tr>
+      <th>ABCD proximo</th>
+      <th>Ocorrencias</th>
+      <th>%</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let item of abcdTransitionSummary | slice:0:abcdTransitionLimit">
+      <td>{{ item.abcd[0] }}/{{ item.abcd[1] }}/{{ item.abcd[2] }}/{{ item.abcd[3] }}</td>
+      <td>{{ item.count }}</td>
+      <td>{{ (abcdTransitionTotal ? (item.count / abcdTransitionTotal * 100) : 0) | number:'1.0-1' }}%</td>
+    </tr>
+  </tbody>
+</table>
+
+<div *ngIf="abcdTransitionPairs.length" class="record-count">
+  <strong>Exemplos ABCD (concurso atual -> proximo)</strong>
+</div>
+<table *ngIf="abcdTransitionPairs.length">
+  <thead>
+    <tr>
+      <th>CC atual</th>
+      <th>CC proximo</th>
+      <th>ABCD atual</th>
+      <th>ABCD proximo</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let item of abcdTransitionPairs | slice:0:abcdTransitionPairsLimit">
+      <td>{{ item.ccCurrent }}</td>
+      <td>{{ item.ccNext }}</td>
+      <td>{{ item.currentAbcd[0] }}/{{ item.currentAbcd[1] }}/{{ item.currentAbcd[2] }}/{{ item.currentAbcd[3] }}</td>
+      <td>{{ item.nextAbcd[0] }}/{{ item.nextAbcd[1] }}/{{ item.nextAbcd[2] }}/{{ item.nextAbcd[3] }}</td>
+    </tr>
+  </tbody>
+</table>
+
 <h2>Tendencia por padrao (ultimos 500 resultados)</h2>
 
 <canvas #patternChart width="600" height="300"></canvas>
@@ -174,4 +286,34 @@
     </div>
   </div>
   <div class="overlay-backdrop" (click)="closePrintPreview()"></div>
+</div>
+
+<div *ngIf="showAbcdAuditModal" class="modal-overlay" (click)="closeAbcdAuditModal()">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-label="Auditoria de frequencia ABCD" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <strong>Auditoria ABCD: frequencia das dezenas (1-25)</strong>
+      <button type="button" (click)="closeAbcdAuditModal()">Fechar</button>
+    </div>
+    <div class="modal-subtitle">
+      Cutoff usado: {{ abcdFrequencyCutoff?.cutoffUsado ?? '-' }} | historico: {{ abcdFrequencyCutoff?.totalHistorico ?? 0 }} concursos
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Dezena</th>
+            <th>Frequencia</th>
+            <th>Grupo ABCD</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of abcdFrequencyRows">
+            <td>{{ row.numero }}</td>
+            <td>{{ row.frequencia }}</td>
+            <td>{{ row.grupo }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>

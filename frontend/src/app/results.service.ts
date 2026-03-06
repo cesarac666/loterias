@@ -14,6 +14,10 @@ export interface LotofacilResult {
   nahN?: number | null;
   nahA?: number | null;
   nahH?: number | null;
+  abcdG1?: number | null;
+  abcdG2?: number | null;
+  abcdG3?: number | null;
+  abcdG4?: number | null;
 }
 
 export interface ResultsResponse {
@@ -27,6 +31,31 @@ export interface ResultsResponse {
     ccNext: number;
     currentNah: number[];
     nextNah: number[];
+  }[];
+  abcdTransitionCurrent?: number[] | null;
+  abcdTransitionSummary?: { abcd: number[]; count: number }[];
+  abcdTransitionTotal?: number;
+  abcdTransitionPairs?: {
+    ccCurrent: number;
+    ccNext: number;
+    currentAbcd: number[];
+    nextAbcd: number[];
+  }[];
+  abcdFrequencyCutoff?: {
+    cutoffSolicitado?: number | null;
+    cutoffUsado?: number | null;
+    totalHistorico: number;
+    grupos: {
+      G1: number[];
+      G2: number[];
+      G3: number[];
+      G4: number[];
+    };
+  } | null;
+  abcdFrequencyRows?: {
+    numero: number;
+    frequencia: number;
+    grupo: string;
   }[];
 }
 
@@ -147,6 +176,8 @@ export interface FilterBacktestDetail {
   cutoff: number;
   nextConcurso: number;
   nextPadraoLinha?: string;
+  nextPadraoLinhaLinha2?: number | null;
+  nextPadraoLinhaLinha5?: number | null;
   filteredTotal: number;
   winnerInFiltered: boolean;
   winnerFilteredPos: number | null;
@@ -161,6 +192,8 @@ export interface FilterBacktestResponse {
   fromCutoff: number;
   toCutoff: number;
   padraoLinha?: string;
+  padraoLinhaLinha2?: number | null;
+  padraoLinhaLinha5?: number | null;
   window: number;
   step: number;
   topN: number;
@@ -193,7 +226,10 @@ export class ResultsService {
     impares: number[] = [],
     concursoLimite?: number,
     padraoLinha?: string,
+    padraoLinhaLinha2?: number,
+    padraoLinhaLinha5?: number,
     nah?: [number, number, number],
+    abcd?: [number, number, number, number],
     somaMin?: number,
     somaMax?: number
   ): Observable<ResultsResponse> {
@@ -210,8 +246,17 @@ export class ResultsService {
     if (padraoLinha) {
       params = params.set('padraoLinha', padraoLinha);
     }
+    if (padraoLinhaLinha2 !== undefined) {
+      params = params.set('padraoLinhaLinha2', String(padraoLinhaLinha2));
+    }
+    if (padraoLinhaLinha5 !== undefined) {
+      params = params.set('padraoLinhaLinha5', String(padraoLinhaLinha5));
+    }
     if (nah && nah.length === 3) {
       params = params.set('nah', nah.join(','));
+    }
+    if (abcd && abcd.length === 4) {
+      params = params.set('abcd', abcd.join(','));
     }
     if (somaMin !== undefined) {
       params = params.set('somaMin', String(somaMin));
@@ -309,9 +354,16 @@ export class ResultsService {
     limit?: number;
     selectionMode?: string;
     selectionSeed?: number;
+    padraoLinha?: string;
+    padraoLinhaLinha2?: number;
+    padraoLinhaLinha5?: number;
     nahList?: string;
   }): Observable<{
     totalBase: number;
+    padraoLinha?: string;
+    padraoLinhaLinha2?: number | null;
+    padraoLinhaLinha5?: number | null;
+    baseCsv?: string;
     cutoff: number;
     nahBase: [number, number, number];
     nahAllowed: [number, number, number][];
@@ -354,6 +406,9 @@ export class ResultsService {
       limit,
       selectionMode,
       selectionSeed,
+      padraoLinha,
+      padraoLinhaLinha2,
+      padraoLinhaLinha5,
       nahList
     } = options;
     params = params.set('cutoff', String(cutoff));
@@ -386,6 +441,9 @@ export class ResultsService {
     if (limit !== undefined) params = params.set('limit', String(limit));
     if (selectionMode) params = params.set('selectionMode', selectionMode);
     if (selectionSeed !== undefined) params = params.set('selectionSeed', String(selectionSeed));
+    if (padraoLinha) params = params.set('padraoLinha', padraoLinha);
+    if (padraoLinhaLinha2 !== undefined) params = params.set('padraoLinhaLinha2', String(padraoLinhaLinha2));
+    if (padraoLinhaLinha5 !== undefined) params = params.set('padraoLinhaLinha5', String(padraoLinhaLinha5));
     if (nahList) params = params.set('nahList', nahList);
     return this.http.get<any>(this.SELECT_FILTERS_URL, { params });
   }
@@ -419,6 +477,8 @@ export class ResultsService {
     pares?: number[];
     impares?: number[];
     padraoLinha?: string;
+    padraoLinhaLinha2?: number;
+    padraoLinhaLinha5?: number;
     nahList?: string;
     backtestWindow?: number;
     backtestTopN?: number;
@@ -454,6 +514,8 @@ export class ResultsService {
       pares = [],
       impares = [],
       padraoLinha,
+      padraoLinhaLinha2,
+      padraoLinhaLinha5,
       nahList,
       backtestWindow,
       backtestTopN,
@@ -488,6 +550,8 @@ export class ResultsService {
     if (pares.length) params = params.set('pares', pares.join(','));
     if (impares.length) params = params.set('impares', impares.join(','));
     if (padraoLinha) params = params.set('padraoLinha', padraoLinha);
+    if (padraoLinhaLinha2 !== undefined) params = params.set('padraoLinhaLinha2', String(padraoLinhaLinha2));
+    if (padraoLinhaLinha5 !== undefined) params = params.set('padraoLinhaLinha5', String(padraoLinhaLinha5));
     if (nahList) params = params.set('nahList', nahList);
     if (backtestWindow !== undefined) params = params.set('backtestWindow', String(backtestWindow));
     if (backtestTopN !== undefined) params = params.set('backtestTopN', String(backtestTopN));

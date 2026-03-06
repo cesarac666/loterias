@@ -97,15 +97,6 @@ def bola_da_vez(
     - any number from `saem` is absent from `dezenas`.
     """
     s = set(dezenas)
-    print("s:")
-    print(s)
-
-    print("entram:")
-    print(entram)
-
-    print("saem:")
-    print(saem)
-    
     acertou_entram = bool(entram and (set(entram) & s))
     acertou_saem = bool(saem and (set(saem) - s))
     return acertou_entram or acertou_saem
@@ -195,33 +186,40 @@ def compute_bola_da_vez_listas(
     """Derive bola-da-vez lists using Top-3 heuristics.
 
     Current rule:
-    - `entram`: top 3 by `maior_atraso` (tie-break: atraso atual, numero)
+    - The reference draw is the latest row in `hist_rows` (cutoff used by
+      each backtest line).
+    - `entram`: top 3 by `maior_atraso` (tie-break: atraso atual, numero),
+      considering only dezenas NOT present in the reference draw.
     - `saem`: top 3 by `frequencia` (tie-break: sequencia atual, numero),
-      excluding numbers already selected in `entram`.
+      considering only dezenas present in the reference draw.
 
     Notes:
     - `margem_entram` and `margem_saem` are kept for backward compatibility
       but are no longer used.
     """
+    if not hist_rows:
+        return [], []
+
+    referencia_row = hist_rows[-1]
     stats = _compute_bola_da_vez_stats(hist_rows)
     top_n = 3
 
+    ultimo_sorteio = {int(referencia_row[f'n{i}']) for i in range(1, 16)}
+    candidatas_entram = set(range(1, 26)) - ultimo_sorteio
+    candidatas_saem = set(ultimo_sorteio)
+
     ordenado_atraso = sorted(
-        stats.items(),
+        [(n, st) for n, st in stats.items() if n in candidatas_entram],
         key=lambda it: (-it[1]['maior_atraso'], -it[1]['atraso_atual'], it[0]),
     )
     ordenado_frequencia = sorted(
-        stats.items(),
+        [(n, st) for n, st in stats.items() if n in candidatas_saem],
         key=lambda it: (-it[1]['frequencia'], -it[1]['sequencia_atual'], it[0]),
     )
 
     entram = [n for n, _ in ordenado_atraso[:top_n]]
-    entram_set = set(entram)
-
     saem: List[int] = []
     for n, _ in ordenado_frequencia:
-        if n in entram_set:
-            continue
         saem.append(n)
         if len(saem) >= top_n:
             break

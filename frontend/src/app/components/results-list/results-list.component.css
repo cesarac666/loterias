@@ -99,6 +99,46 @@ th {
   background-color: #222;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.62);
+  z-index: 1300;
+  padding: 16px;
+}
+
+.modal-dialog {
+  width: min(980px, 100%);
+  max-height: 85vh;
+  background: #111;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.modal-subtitle {
+  font-size: 12px;
+  color: #c9d1d9;
+}
+
+.table-scroll {
+  overflow: auto;
+}
+
 /* Overlay for print preview */
 .overlay {
   position: fixed;
@@ -161,7 +201,8 @@ th {
   table,
   canvas,
   .overlay-backdrop,
-  .overlay-header button {
+  .overlay-header button,
+  .modal-header button {
     display: none !important;
   }
 

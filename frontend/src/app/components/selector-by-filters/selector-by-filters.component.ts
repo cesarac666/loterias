@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import {
   FilterBacktestDetail,
   FilterBacktestModeSummary,
@@ -11,7 +11,7 @@ import {
   templateUrl: './selector-by-filters2.component.html',
   styleUrls: ['./selector-by-filters.component.css']
 })
-export class SelectorByFiltersComponent {
+export class SelectorByFiltersComponent implements OnDestroy {
   // Inputs
   cutoff = '';
   aplicarCRE = true;
@@ -44,6 +44,9 @@ export class SelectorByFiltersComponent {
   useParImpar = true;
   pares = '6,7,8';
   impares = '7,8,9';
+  padraoLinha = '';
+  padraoLinhaLinha2 = '';
+  padraoLinhaLinha5 = '';
   limit = 200;
   selectionMode = 'random';
   selectionSeed = '';
@@ -54,7 +57,8 @@ export class SelectorByFiltersComponent {
     diversidade: 'Diversidade (Jaccard)',
     estratificada: 'Estratificada (grupos)',
     distantes: 'Distantes (ID base)',
-    primeiras: 'Primeiras (ordem da base)'
+    primeiras: 'Primeiras (ordem da base)',
+    historica: 'Historica (freq + transicao + soma)'
   };
   saving = false;
   saveStatus = '';
@@ -73,8 +77,8 @@ export class SelectorByFiltersComponent {
   backtestWindow = 60;
   backtestTopN = 100;
   backtestStep = 1;
-  backtestPadraoLinha = '';
   backtestLoading = false;
+  backtestElapsedSeconds = 0;
   backtestError = '';
   backtestFromCutoff: number | null = null;
   backtestToCutoff: number | null = null;
@@ -84,6 +88,7 @@ export class SelectorByFiltersComponent {
   backtestModeSummaries: FilterBacktestModeSummary[] = [];
   backtestDetails: FilterBacktestDetail[] = [];
   showBacktestAuditModal = false;
+  private backtestTimerId: any = null;
 
   // Outputs
   totalBase = 0;
@@ -117,6 +122,15 @@ export class SelectorByFiltersComponent {
     }
     const parsed = parseInt(value.trim(), 10);
     return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
+  onPadraoLinhaChange(): void {
+    if (this.padraoLinha !== 'quase 3 por linha') {
+      this.padraoLinhaLinha2 = '';
+    }
+    if (this.padraoLinha !== '1 linha completa') {
+      this.padraoLinhaLinha5 = '';
+    }
   }
 
   run(): void {
@@ -171,10 +185,16 @@ export class SelectorByFiltersComponent {
       limit: this.limit,
       selectionMode: this.selectionMode,
       selectionSeed,
+      padraoLinha: this.padraoLinha || undefined,
+      padraoLinhaLinha2: this.parseOptionalInt(this.padraoLinhaLinha2),
+      padraoLinhaLinha5: this.parseOptionalInt(this.padraoLinhaLinha5),
       nahList: nahList || undefined
     }).subscribe(res => {
       this.totalBase = res.totalBase;
       this.totalFiltrado = res.totalFiltrado;
+      this.padraoLinha = res.padraoLinha || this.padraoLinha;
+      this.padraoLinhaLinha2 = res.padraoLinhaLinha2 != null ? String(res.padraoLinhaLinha2) : this.padraoLinhaLinha2;
+      this.padraoLinhaLinha5 = res.padraoLinhaLinha5 != null ? String(res.padraoLinhaLinha5) : this.padraoLinhaLinha5;
       this.nahBase = res.nahBase;
       this.nahAllowed = res.nahAllowed || [];
       this.nahAllowedTooltip = this.nahAllowed.map(n => n.join('/')).join('; ');
@@ -257,6 +277,9 @@ export class SelectorByFiltersComponent {
       abcdMax: this.abcdMax.split(',').map(v => parseInt(v.trim(), 10)),
       pares: this.useParImpar ? this.parseCsvNumbers(this.pares) : [],
       impares: this.useParImpar ? this.parseCsvNumbers(this.impares) : [],
+      padraoLinha: this.padraoLinha || undefined,
+      padraoLinhaLinha2: this.parseOptionalInt(this.padraoLinhaLinha2),
+      padraoLinhaLinha5: this.parseOptionalInt(this.padraoLinhaLinha5),
     };
     this.resultsService.checkSelection(cutoffVal, bets, options).subscribe(res => {
       this.nextConcurso = res.nextConcurso;
@@ -350,20 +373,30 @@ export class SelectorByFiltersComponent {
     this.showBacktestAuditModal = false;
   }
 
-  formatModeHits(modeHits: { [mode: string]: number | null } | undefined): string {
-    if (!modeHits) {
-      return '-';
+  ngOnDestroy(): void {
+    this.stopBacktestTimer();
+  }
+
+  modePos(modeHits: { [mode: string]: number | null } | undefined, mode: string): number | null {
+    if (!modeHits || !(mode in modeHits)) {
+      return null;
     }
-    const keys = Object.keys(modeHits);
-    if (!keys.length) {
-      return '-';
+    return modeHits[mode];
+  }
+
+  private startBacktestTimer(): void {
+    this.stopBacktestTimer();
+    this.backtestElapsedSeconds = 0;
+    this.backtestTimerId = setInterval(() => {
+      this.backtestElapsedSeconds += 1;
+    }, 1000);
+  }
+
+  private stopBacktestTimer(): void {
+    if (this.backtestTimerId) {
+      clearInterval(this.backtestTimerId);
+      this.backtestTimerId = null;
     }
-    return keys
-      .map(k => {
-        const v = modeHits[k];
-        return `${k}:${v == null ? '-' : v}`;
-      })
-      .join(' | ');
   }
 
   runBacktest(): void {
@@ -388,6 +421,7 @@ export class SelectorByFiltersComponent {
 
     this.backtestLoading = true;
     this.backtestError = '';
+    this.startBacktestTimer();
     this.resultsService.getFilterBacktest({
       cutoff: cutoffVal,
       aplicarPI: this.useParImpar,
@@ -416,7 +450,9 @@ export class SelectorByFiltersComponent {
       abcdMax: abcdMaxArr,
       pares: this.useParImpar ? paresVals : [],
       impares: this.useParImpar ? imparesVals : [],
-      padraoLinha: this.backtestPadraoLinha || undefined,
+      padraoLinha: this.padraoLinha || undefined,
+      padraoLinhaLinha2: this.parseOptionalInt(this.padraoLinhaLinha2),
+      padraoLinhaLinha5: this.parseOptionalInt(this.padraoLinhaLinha5),
       nahList: nahList || undefined,
       backtestWindow: this.backtestWindow,
       backtestTopN: this.backtestTopN,
@@ -428,15 +464,21 @@ export class SelectorByFiltersComponent {
         this.backtestTotalAvaliados = res.totalAvaliados || 0;
         this.backtestWinnerInFilteredCount = res.winnerInFilteredCount || 0;
         this.backtestWinnerInFilteredRate = res.winnerInFilteredRate || 0;
+        this.padraoLinha = res.padraoLinha || this.padraoLinha;
+        this.padraoLinhaLinha2 = res.padraoLinhaLinha2 != null ? String(res.padraoLinhaLinha2) : this.padraoLinhaLinha2;
+        this.padraoLinhaLinha5 = res.padraoLinhaLinha5 != null ? String(res.padraoLinhaLinha5) : this.padraoLinhaLinha5;
         this.backtestModeSummaries = res.modes || [];
         this.backtestDetails = res.details || [];
         this.showBacktestAuditModal = false;
         this.backtestLoading = false;
+        this.stopBacktestTimer();
       },
-      error: () => {
-        this.backtestError = 'Falha ao executar backtest.';
+      error: (err) => {
+        const backendError = err?.error?.error;
+        this.backtestError = backendError || 'Falha ao executar backtest.';
         this.showBacktestAuditModal = false;
         this.backtestLoading = false;
+        this.stopBacktestTimer();
       }
     });
   }
